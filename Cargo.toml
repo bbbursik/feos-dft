@@ -4,13 +4,9 @@ version = "0.1.0"
 authors = ["Philipp Rehner <rehner@itt.uni-stuttgart.de>"]
 edition = "2018"
 
-[lib]
-name = "feos_dft"
-crate-type = ["rlib", "cdylib"]
-
 [dependencies]
 quantity = "0.3"
-feos-core = { git = "https://github.com/feos-org/feos-core", branch = "main" }
+feos-core = { git = "https://github.com/feos-org/feos-core", branch = "remove_extension_module" }
 num-dual = "0.3"
 ndarray = { version = "0.15", features = ["serde", "rayon"] }
 ndarray-linalg = "0.14"
@@ -28,7 +24,7 @@ petgraph = "0.6"
 
 [dependencies.pyo3]
 version = "0.14"
-features = ["extension-module", "abi3", "abi3-py36"]
+features = ["abi3", "abi3-py36"]
 optional = true
 
 [features]

@@ -13,7 +13,6 @@ pub use adsorption::{PyExternalPotential, PyGeometry};
 use fundamental_measure_theory::*;
 pub use solver::PyDFTSolver;
 
-#[pymodule]
 pub fn feos_dft(py: Python<'_>, m: &PyModule) -> PyResult<()> {
     m.add_class::<PyExternalPotential>()?;
     m.add_class::<PyGeometry>()?;
