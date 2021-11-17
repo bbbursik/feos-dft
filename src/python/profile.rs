@@ -98,6 +98,16 @@ macro_rules! impl_profile {
                 Ok(n.into_iter().map(|n| n.view().to_pyarray(py)).collect())
             }
 
+
+            #[getter]
+            fn get_local_weighted_densities<'py>(
+                &self,
+                py: Python<'py>,
+            ) -> PyResult<Vec<&'py $arr2<f64>>> {
+                let n = self.0.profile.local_weighted_densities()?;
+                Ok(n.into_iter().map(|n| n.view().to_pyarray(py)).collect())
+            }
+
             #[getter]
             fn get_functional_derivative<'py>(
                 &self,
