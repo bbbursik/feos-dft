@@ -94,17 +94,8 @@ macro_rules! impl_profile {
                 &self,
                 py: Python<'py>,
             ) -> PyResult<Vec<&'py $arr2<f64>>> {
+                // self.0.profile.local_weighted_densities();
                 let n = self.0.profile.weighted_densities()?;
-                Ok(n.into_iter().map(|n| n.view().to_pyarray(py)).collect())
-            }
-
-
-            #[getter]
-            fn get_local_weighted_densities<'py>(
-                &self,
-                py: Python<'py>,
-            ) -> PyResult<Vec<&'py $arr2<f64>>> {
-                let n = self.0.profile.local_weighted_densities()?;
                 Ok(n.into_iter().map(|n| n.view().to_pyarray(py)).collect())
             }
 
@@ -164,6 +155,22 @@ macro_rules! impl_1d_profile {
             PyArray2,
             [$([0, $ax]),+]
         );
+
+        #[pymethods]
+        impl $struct {
+            #[getter]
+            fn get_local_weighted_densities<'py>(
+                &self,
+                py: Python<'py>,
+            ) -> PyResult<Vec<&'py PyArray2<f64>>> {
+                let n = self.0.profile.local_weighted_densities()?;
+                Ok(n.into_iter().map(|n| n.view().to_pyarray(py)).collect())
+            } 
+        }
+        
+
+
+
     };
 }
 

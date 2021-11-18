@@ -13,8 +13,7 @@ use num_dual::Dual64;
 use quantity::{Quantity, QuantityArray, QuantityArray1, QuantityScalar};
 use std::ops::MulAssign;
 use std::rc::Rc;
-use num_dual::HyperDual64;
-use super::weight_functions::WeightFunctionInfo;
+use num_dual::{HyperDual64, HyperDualVec, HyperDualVec64};
 
 
 pub(crate) const MAX_POTENTIAL: f64 = 50.0;
@@ -324,6 +323,81 @@ impl<U: Clone, D: Dimension, F> Clone for DFTProfile<U, D, F> {
     }
 }
 
+impl<U, F> DFTProfile<U, Ix1, F>
+where
+    U: EosUnit,
+    F: HelmholtzEnergyFunctional,
+{
+
+
+    pub fn local_weighted_densities(&self) -> EosResult<Vec<Array<f64, Ix2>>>{//EosResult<Vec<Array<f64, D::Larger>>> {
+        // let densities = self.density.to_reduced(U::reference_density())?;//.view();
+        let densities = self.density.to_reduced(U::reference_density())?;//.view()
+        let dx = self.grid.grids()[0][1] - self.grid.grids()[0][0];
+        // dbg!(densities.raw_dim());
+        // dbg!(dx);
+        let gradient = Array::from_shape_fn(densities.raw_dim(), |(c, i)| {
+            let d = if i == 0 {
+                densities[(c,1)] - densities[(c,0)] // Left value --> where from?
+                } else if i == densities.shape()[1] - 1 {
+                densities[(c,densities.shape()[1]-1)] - densities[(c,densities.shape()[1] - 2)]
+            } else {
+                densities[(c,i + 1)] - densities[(c,i - 1)]
+            };
+            d / (2.0 * dx)
+        }); 
+        
+        let laplace = Array::from_shape_fn(gradient.raw_dim(), |(c, i)| {
+            let d = if i == 0 {
+                gradient[(c,1)] - gradient[(c,0)] // Left value --> where from?
+                } else if i == gradient.shape()[1] - 1 {
+                gradient[(c,gradient.shape()[1]-1)] - gradient[(c,gradient.shape()[1] - 2)]
+            } else {
+                gradient[(c,i + 1)] - gradient[(c,i - 1)]
+            };
+            d / (2.0 * dx)
+        });
+
+
+        
+        // 
+        // dbg!(gradient);
+        // 
+        // Weight Constants from:
+        // loop through contributions and then:
+        // 1. call self.weight_functions --> call pdgt_weight_constatns
+        // 2. call self.weight_functions --> calculate analogously to pdgt_weight_constants
+        // WeightFunctionInfo<HyperDualVec<f64,f64>>
+
+        let weight_functions: Vec<WeightFunctionInfo<HyperDual64>> = self.dft.functional.contributions()
+                .iter()
+                .map(|c| c.weight_functions(HyperDual64::from(self.temperature.to_reduced(U::reference_temperature()).unwrap())))
+                .collect();
+        
+        let k = HyperDual64::from(0.0).derive1().derive2();
+
+        let mut weighted_densities_vec = Vec::with_capacity(weight_functions.len());
+
+        for wfs in weight_functions.iter(){
+            let w = wfs.weight_constants(k, 1);
+            let w0 = w.mapv(|w| w.re);
+            let w1 = w.mapv(|w| -w.eps1[0]);
+            let w2 = w.mapv(|w| -0.5 * w.eps1eps2[(0, 0)]);
+            
+
+            let weighted_densities = &densities.view()* &w0 + &laplace.view() * &w2;
+            weighted_densities_vec.push(weighted_densities);
+        } 
+
+       
+        Ok(weighted_densities_vec)
+    }
+
+
+
+
+}
+
 impl<U, D, F> DFTProfile<U, D, F>
 where
     U: EosUnit,
@@ -335,48 +409,6 @@ where
         Ok(self
             .convolver
             .weighted_densities(&self.density.to_reduced(U::reference_density())?))
-    }
-
-
-
-
-    pub fn local_weighted_densities(&self) -> EosResult<Vec<Array<f64, D::Larger>>> {
-        let densities = self.density.to_reduced(U::reference_density())?;//.view();
-
-        
-        let mut gradient = Array::zeros(densities.raw_dim());
-        let dx = self.grid.grids()[0][1] - self.grid.grids()[0][0];
-        
-        // ArrayBase<OwnedRepr<f64>,D>
-        // dbg!(densities.raw_dim());
-        //let dx = self.grid.grids()[0]-self.grid.axes().grid[0]; 
-
-        for (rhos,grads) in densities.axis_iter(Axis_nd(0)).zip(gradient.axis_iter(Axis_nd(0))){
-            for (rho, grad) in rhos.axis_iter(Axis_nd(1)).zip(grads.axis_iter(Axis_nd(1))){
-                grad = Array::from_shape_fn(rho.raw_dim(), |i| {
-                    let d = if i == 0 {
-                        rho[1] - rho[0] // Left value --> where from?
-                    } else if i == rho.len() - 1 {
-                        rho[rho.len()-1] - rho[rho.len() - 2]
-                    } else {
-                        rho[i + 1] - rho[i - 1]
-                    };
-                    d / (2.0 * dx)
-                })
-            }
-        }     
-        // 
-        // 
-        let k = HyperDual64::from(0.0).derive1().derive2();
-        let w = self.dft.weight_constants(k, 1);
-        
-        let w0 = w.mapv(|w| w.re);
-        let w1 = w.mapv(|w| -w.eps1[0]);
-        let w2 = w.mapv(|w| -0.5 * w.eps1eps2[(0, 0)]);
-        
-
-        let lwd = 
-        Ok()
     }
 
 
