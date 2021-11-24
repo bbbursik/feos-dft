@@ -166,6 +166,14 @@ macro_rules! impl_1d_profile {
                 let n = self.0.profile.local_weighted_densities()?;
                 Ok(n.into_iter().map(|n| n.view().to_pyarray(py)).collect())
             } 
+
+            #[getter]
+            fn get_local_functional_derivative<'py>(
+                &self,
+                py: Python<'py>,
+            ) -> PyResult<&'py PyArray2<f64>> {
+                Ok(self.0.profile.local_functional_derivative()?.view().to_pyarray(py))
+            }
         }
         
 

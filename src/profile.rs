@@ -328,24 +328,31 @@ where
     F: HelmholtzEnergyFunctional,
 {
     pub fn local_functional_derivative(&self) -> EosResult<Array<f64, Ix2>> {
-
-
         let temperature = self.temperature.to_reduced(U::reference_temperature())?;
-
+        println!("Version of 17:36");
         let densities = self.density.to_reduced(U::reference_density())?; //.view()
         let dx = self.grid.grids()[0][1] - self.grid.grids()[0][0];
 
         let k0 = HyperDual64::from(0.0).derive1().derive2();
 
-
         let weighted_densities = self.local_weighted_densities()?;
         let contributions = self.dft.functional.contributions();
-        let mut functional_derivative = Array::zeros(densities.raw_dim().remove_axis(Axis_nd(0)));
+        let mut functional_derivative = Array::zeros(densities.raw_dim())
+            .into_dimensionality()
+            .unwrap();
         for (c, wd) in contributions.iter().zip(weighted_densities) {
-            let w = c.weight_functions(HyperDual64::from(temperature)).weight_constants(k0, 1); //can rewrite this with the corresponding function for the weight constants (i.e. scalar_weigth_const)
+            let wf = c.weight_functions(HyperDual64::from(temperature));
+            let w = wf.weight_constants(k0, 1);
             let w0 = w.mapv(|w| w.re);
+            let w1 = w.mapv(|w| -w.eps1[0]);
             let w2 = w.mapv(|w| -0.5 * w.eps1eps2[(0, 0)]);
 
+            println!("w0 = {:?}", w0);
+            println!("w1 = {:?}", w1);
+            println!("w2 = {:?}", w2);
+
+
+            let segments = wf.component_index.len();
             let nwd = wd.shape()[0];
             let ngrid = wd.len() / nwd;
             let mut phi = Array::zeros(densities.raw_dim().remove_axis(Axis_nd(0)));
@@ -356,39 +363,90 @@ where
                 wd.into_shape((nwd, ngrid)).unwrap(),
                 phi.view_mut().into_shape(ngrid).unwrap(),
                 fpd.view_mut().into_shape((nwd, ngrid)).unwrap(),
-            )?; 
-             /*
-            c.second_partial_derivatives(
-                temperature,
-                wd.into_shape((nwd, ngrid)).unwrap(),
-                phi.view_mut().into_shape(ngrid).unwrap(),
-                fpd.view_mut().into_shape((nwd, ngrid)).unwrap(),
-                spd.view_mut().into_shape((nwd, nwd, ngrid)).unwrap(),
             )?;
-            */
+           
+            // calculate gradients of partial derivatives
+            // !! MAKES SENSE ONLY IN 1D FOR NOW!! even though it should compile
+            let grad_fpd = self.gradient(&fpd, dx)?;
+            let lapl_fpd = self.gradient(&grad_fpd, dx)?;
 
-            
-            functional_derivative += &fpd;
+            // Initilaizing row index for non-local functional derivative
+            let mut k = 0;
+
+            // Assigning possible local densities to the front of the array
+            if wf.local_density {
+                functional_derivative += &fpd.slice_axis(Axis_nd(0), Slice::from(..segments));
+                k += segments;
+            }
+
+            // Calculating functional derivative {scalar, component}
+            for wf_i in &wf.scalar_component_weighted_densities {
+                for (i, ((pd, lapl), mut res)) in fpd
+                    .slice_axis(Axis_nd(0), Slice::from(k..k + segments))
+                    .outer_iter()
+                    .zip(
+                        lapl_fpd
+                            .slice_axis(Axis_nd(0), Slice::from(k..k + segments))
+                            .outer_iter(),
+                    )
+                    .zip(functional_derivative.outer_iter_mut())
+                    .enumerate()
+                {
+                    res.add_assign(
+                        &(&pd * w0.slice(s![k..k + segments, ..]).into_diag()[i]
+                            + &lapl * w2.slice(s![k..k + segments, ..]).into_diag()[i]),
+                    );
+                }
+                k += segments;
+            }
+
+            // Calculating functional derivative {vector, component}
+            for wf_i in &wf.vector_component_weighted_densities {
+                for (i, (grad, mut res)) in grad_fpd
+                    .slice_axis(Axis_nd(0), Slice::from(k..k + segments))
+                    .outer_iter()
+                    .zip(functional_derivative.outer_iter_mut())
+                    .enumerate()
+                {
+                    res.add_assign(&(&grad * (w1.slice(s![k..k + segments, ..]).into_diag()[i])));
+                }
+                k += segments;
+            }
+
+            // Calculating functional derivative {scalar, FMT}
+            for wf_i in &wf.scalar_fmt_weighted_densities {
+                for (i, mut res) in functional_derivative.outer_iter_mut().enumerate() {
+                    res.add_assign(
+                        &(&fpd.index_axis(Axis_nd(0), k) * w0.slice(s![k, ..])[i]
+                            + &lapl_fpd.index_axis(Axis_nd(0), k) * w2.slice(s![k, ..])[i]),
+                    );
+                }
+                k += 1;
+            }
+
+            // Calculating functional derivative {vector, FMT}
+            // !! WORKS FOR 1D ONLY I think!!
+            for wf_i in &wf.vector_fmt_weighted_densities {
+                for (i, mut res) in functional_derivative.outer_iter_mut().enumerate() {
+                    res.add_assign(
+                        &(&grad_fpd.index_axis(Axis_nd(0), k) * w1.slice(s![k, ..])[i] 
+                            ),
+                    );
+                }
+                k += 1;
+            }
         }
+
         Ok(functional_derivative)
 
-
-        /*
-        let (_, dfdrho) = self.dft.functional_derivative(
-            self.temperature.to_reduced(U::reference_temperature())?,
-            &self.density.to_reduced(U::reference_density())?,
-            &self.convolver,
-        )?;
-        */
-        Ok(dfdrho)
     }
 
     pub fn gradient(&self, f: &Array<f64, Ix2>, dx: f64) -> EosResult<Array<f64, Ix2>> {
         let grad = Array::from_shape_fn(f.raw_dim(), |(c, i)| {
             let d = if i == 0 {
-                f[(c, 1)] - f[(c, 0)] // Left value --> where from?
+                2.0 * (f[(c, 1)] - f[(c, 0)]) // Left value --> where from?
             } else if i == f.shape()[1] - 1 {
-                f[(c, f.shape()[1] - 1)] - f[(c, f.shape()[1] - 2)]
+                2.0 * (f[(c, f.shape()[1] - 1)] - f[(c, f.shape()[1] - 2)])
             } else {
                 f[(c, i + 1)] - f[(c, i - 1)]
             };
@@ -403,30 +461,6 @@ where
 
         let gradient = self.gradient(&densities, dx)?;
         let laplace = self.gradient(&gradient, dx)?;
-        /*
-        let gradient = Array::from_shape_fn(densities.raw_dim(), |(c, i)| {
-            let d = if i == 0 {
-                densities[(c, 1)] - densities[(c, 0)] // Left value --> where from?
-            } else if i == densities.shape()[1] - 1 {
-                densities[(c, densities.shape()[1] - 1)] - densities[(c, densities.shape()[1] - 2)]
-            } else {
-                densities[(c, i + 1)] - densities[(c, i - 1)]
-            };
-            d / (2.0 * dx)
-        });
-
-
-        let laplace = Array::from_shape_fn(gradient.raw_dim(), |(c, i)| {
-            let d = if i == 0 {
-                gradient[(c, 1)] - gradient[(c, 0)] // Left value --> where from?
-            } else if i == gradient.shape()[1] - 1 {
-                gradient[(c, gradient.shape()[1] - 1)] - gradient[(c, gradient.shape()[1] - 2)]
-            } else {
-                gradient[(c, i + 1)] - gradient[(c, i - 1)]
-            };
-            d / (2.0 * dx)
-        });
-        */
         let temperature =
             HyperDual64::from(self.temperature.to_reduced(U::reference_temperature())?);
 
@@ -447,7 +481,9 @@ where
 
             let w = wf.weight_constants(k0, 1); //can rewrite this with the corresponding function for the weight constants (i.e. scalar_weigth_const)
             let w0 = w.mapv(|w| w.re);
+            let w1 = w.mapv(|w| -w.eps1[0]);
             let w2 = w.mapv(|w| -0.5 * w.eps1eps2[(0, 0)]);
+
 
             // number of weighted densities
             let n_wd = wf.n_weighted_densities(1);
@@ -492,9 +528,8 @@ where
             // Calculating weighted densities {vector, component}
             // !! WORKS FOR 1D ONLY !!
             for wf_i in &wf.vector_component_weighted_densities {
-                for (i, ((rho, lapl), mut res)) in densities
+                for (i, (grad,  mut res)) in gradient
                     .outer_iter()
-                    .zip(laplace.outer_iter())
                     .zip(
                         weighted_densities
                             .slice_axis_mut(Axis_nd(0), Slice::from(k..k + segments))
@@ -503,8 +538,7 @@ where
                     .enumerate()
                 {
                     res.assign(
-                        &(&rho * w0.slice(s![k..k + segments, ..]).into_diag()[i]
-                            + &lapl * w2.slice(s![k..k + segments, ..]).into_diag()[i]),
+                        &(&grad * w1.slice(s![k..k + segments, ..]).into_diag()[i]),
                     );
                 }
                 k += segments;
@@ -524,10 +558,10 @@ where
             // Calculating weighted densities {vector, FMT}
             // !! WORKS FOR 1D ONLY I think!!
             for wf_i in &wf.vector_fmt_weighted_densities {
-                for (i, (rho, lapl)) in densities.outer_iter().zip(laplace.outer_iter()).enumerate()
+                for (i, grad) in gradient.outer_iter().enumerate()
                 {
                     weighted_densities.index_axis_mut(Axis_nd(0), k).add_assign(
-                        &(&rho * w0.slice(s![k, ..])[i] + &lapl * w2.slice(s![k, ..])[i]),
+                        &(&grad * w1.slice(s![k, ..])[i] ),
                     );
                 }
                 k += 1;
