@@ -1,7 +1,8 @@
 use crate::geometry::{Axis, AxisGeometry, Grid};
-use crate::weight_functions::*;
+use crate::weight_functions::{self, *};
+use feos_core::EosResult;
 use ndarray::prelude::*;
-use ndarray::{Axis as Axis_nd, RemoveAxis, ScalarOperand, Slice};
+use ndarray::{Axis as Axis_nd, Ix1, Ix2, RemoveAxis, ScalarOperand, Slice};
 use num_dual::*;
 use rustdct::DctNum;
 use std::ops::{AddAssign, MulAssign, SubAssign};
@@ -63,6 +64,189 @@ impl<T, D: Dimension> FFTWeightFunctions<T, D> {
             + self.vector_component_weighted_densities.len() * self.segments * dimensions
             + self.scalar_fmt_weighted_densities.len()
             + self.vector_fmt_weighted_densities.len() * dimensions
+    }
+}
+
+pub struct GradConvolver<T, D: Dimension> {
+    grid: Array<T, D>,
+    weight_functions: Vec<WeightFunctionInfo<T>>,
+    weight_constants: Vec<Array<T>>,
+}
+
+// impl<T, D: Dimension + 'static> GradConvolver<T, D>
+// where
+//     T: DctNum + DualNum<f64> + ScalarOperand,
+//     D::Larger: Dimension<Smaller = D>,
+//     <D::Larger as Dimension>::Larger: Dimension<Smaller = D::Larger>,
+// {
+//     fn new(
+//         grid: Array<T, D>,
+//         weight_functions: Vec<WeightFunctionInfo<T>>, //&[WeightFunctionInfo<T>],
+//     ) -> Rc<dyn Convolver<T, D>> {
+//         Rc::new(Self {
+//             grid,
+//             weight_functions,
+//         })
+//     }
+// }
+
+impl<T> GradConvolver<T, Ix1>
+where
+    T: DctNum + DualNum<f64> + ScalarOperand,
+{
+    fn new(
+        grid: Array<T, Ix1>,
+        weight_functions: Vec<WeightFunctionInfo<T>>, //&[WeightFunctionInfo<T>],
+    ) -> Rc<dyn Convolver<T, Ix1>> {
+        Rc::new(Self {
+            grid,
+            weight_functions,
+        })
+    }
+
+    pub fn gradient(&self, f: &Array<T, Ix2>, dx: T) -> Array<T, Ix2> {
+        let grad = Array::from_shape_fn(f.raw_dim(), |(c, i)| {
+            let d = if i == 0 {
+                (f[(c, 1)] - f[(c, 0)]) * 2.0 // Left value --> where from?
+            } else if i == f.shape()[1] - 1 {
+                (f[(c, f.shape()[1] - 1)] - f[(c, f.shape()[1] - 2)]) * 2.0
+            } else {
+                f[(c, i + 1)] - f[(c, i - 1)]
+            };
+            d / (dx * 2.0)
+        });
+        grad
+    }
+}
+
+impl<T> Convolver<T, Ix1> for GradConvolver<T, Ix1>
+where
+    T: DctNum + DualNum<f64> + ScalarOperand,
+{
+    fn convolve(
+        &self,
+        profile: Array<T, Ix1>,
+        weight_function: &WeightFunction<T>,
+    ) -> Array<T, Ix1> {
+        unimplemented!();
+    }
+
+    fn weighted_densities(&self, density: &Array<T, Ix2>) -> Vec<Array<T, Ix2>> {
+        let dx = self.grid[1] - self.grid[0];
+
+        let gradient = self.gradient(&density, dx);
+        let laplace = self.gradient(&gradient, dx);
+        // let temperature =
+        //     HyperDual64::from(self.temperature.to_reduced(U::reference_temperature())?);
+
+        // let weight_functions: Vec<WeightFunctionInfo<HyperDual64>> = self
+        //     .dft
+        //     .functional
+        //     .contributions()
+        //     .iter()
+        //     .map(|c| c.weight_functions(temperature))
+        //     .collect();
+
+        let k0 = HyperDual64::from(0.0).derive1().derive2();
+        let mut weighted_densities_vec = Vec::with_capacity(self.weight_functions.len());
+
+        let weight_functions_hd: Vec<WeightFunctionInfo<HyperDual64>> =
+            self.weight_functions as Vec<WeightFunctionInfo<HyperDual64>>;
+
+        //loop over contributions
+        for wf in self.weight_functions.iter() {
+            let segments = wf.component_index.len();
+            //let wf_hd = WeightFunctionInfo::from(HyperDual64::from(wf)); //brauche die wf als Hyperdual für die weight constants, aber es kommt aus Interface als f64 --> übergeben aus Interface
+            let w = wf.weight_constants(k0, 1); //can rewrite this with the corresponding function for the weight constants (i.e. scalar_weigth_const)
+            let w0 = w.mapv(|w| w.re);
+            let w1 = w.mapv(|w| -w.eps1[0]);
+            let w2 = w.mapv(|w| -0.5 * w.eps1eps2[(0, 0)]);
+
+            // number of weighted densities
+            let n_wd = wf.n_weighted_densities(1);
+
+            // Allocating new array for intended weighted densities
+            let mut dim = vec![n_wd];
+            density.shape().iter().skip(1).for_each(|&d| dim.push(d));
+
+            let mut weighted_densities = Array::zeros(dim).into_dimensionality().unwrap();
+
+            // Initilaizing row index for non-local weighted densities
+            let mut k = 0;
+
+            // Assigning possible local densities to the front of the array
+            if wf.local_density {
+                weighted_densities
+                    .slice_axis_mut(Axis_nd(0), Slice::from(0..segments))
+                    .assign(&density);
+                k += segments;
+            }
+
+            // Calculating weighted densities {scalar, component}
+            for wf_i in &wf.scalar_component_weighted_densities {
+                for (i, ((rho, lapl), mut res)) in density
+                    .outer_iter()
+                    .zip(laplace.outer_iter())
+                    .zip(
+                        weighted_densities
+                            .slice_axis_mut(Axis_nd(0), Slice::from(k..k + segments))
+                            .outer_iter_mut(),
+                    )
+                    .enumerate()
+                {
+                    res.assign(
+                        &(&rho * w0.slice(s![k..k + segments, ..]).into_diag()[i]
+                            + &lapl * w2.slice(s![k..k + segments, ..]).into_diag()[i]),
+                    );
+                }
+                k += segments;
+            }
+
+            // Calculating weighted densities {vector, component}
+            // !! WORKS FOR 1D ONLY !!
+            for wf_i in &wf.vector_component_weighted_densities {
+                for (i, (grad, mut res)) in gradient
+                    .outer_iter()
+                    .zip(
+                        weighted_densities
+                            .slice_axis_mut(Axis_nd(0), Slice::from(k..k + segments))
+                            .outer_iter_mut(),
+                    )
+                    .enumerate()
+                {
+                    res.assign(&(&grad * w1.slice(s![k..k + segments, ..]).into_diag()[i]));
+                }
+                k += segments;
+            }
+
+            // Calculating weighted densities {scalar, FMT}
+            for wf_i in &wf.scalar_fmt_weighted_densities {
+                for (i, (rho, lapl)) in density.outer_iter().zip(laplace.outer_iter()).enumerate() {
+                    weighted_densities.index_axis_mut(Axis_nd(0), k).add_assign(
+                        &(&rho * w0.slice(s![k, ..])[i] + &lapl * w2.slice(s![k, ..])[i]),
+                    );
+                }
+                k += 1;
+            }
+
+            // Calculating weighted densities {vector, FMT}
+            // !! WORKS FOR 1D ONLY I think!!
+            for wf_i in &wf.vector_fmt_weighted_densities {
+                for (i, grad) in gradient.outer_iter().enumerate() {
+                    weighted_densities
+                        .index_axis_mut(Axis_nd(0), k)
+                        .add_assign(&(&grad * w1.slice(s![k, ..])[i]));
+                }
+                k += 1;
+            }
+            weighted_densities_vec.push(weighted_densities);
+        }
+
+        Ok(weighted_densities_vec)
+    }
+
+    fn functional_derivative(&self, partial_derivatives: &[Array<T, Ix2>]) -> Array<T, Ix2> {
+        unimplemented!();
     }
 }
 

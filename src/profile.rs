@@ -6,8 +6,8 @@ use crate::weight_functions::WeightFunctionInfo;
 use feos_core::{Contributions, EosError, EosResult, EosUnit, EquationOfState, State};
 use log::{info, warn};
 use ndarray::{
-    s, Array, Array1, ArrayBase, ArrayViewMut, ArrayViewMut1, Axis as Axis_nd, Data, Dimension,
-    Ix1, Ix2, Ix3, RemoveAxis, Slice,
+    s, Array, Array1, Array3, ArrayBase, ArrayView, ArrayViewMut, ArrayViewMut1, Axis as Axis_nd,
+    Data, Dimension, Ix1, Ix2, Ix3, RemoveAxis, Slice,
 };
 use num_dual::Dual64;
 use num_dual::{HyperDual64, HyperDualVec, HyperDualVec64};
@@ -329,7 +329,7 @@ where
 {
     pub fn local_functional_derivative_v2(&self) -> EosResult<Vec<Array<f64, Ix2>>> {
         let temperature = self.temperature.to_reduced(U::reference_temperature())?;
-        println!("Version of 8:50");
+        println!("Version of 12:01");
         let densities = self.density.to_reduced(U::reference_density())?; //.view()
         let dx = self.grid.grids()[0][1] - self.grid.grids()[0][0];
 
@@ -353,9 +353,9 @@ where
             let w1 = w.mapv(|w| -w.eps1[0]);
             let w2 = w.mapv(|w| -0.5 * w.eps1eps2[(0, 0)]);
 
-            println!("w0 = {:?}", w0);
-            println!("w1 = {:?}", w1);
-            println!("w2 = {:?}", w2);
+            // println!("w0 = {:?}", w0);
+            // println!("w1 = {:?}", w1);
+            // println!("w2 = {:?}", w2);
 
             let segments = wf.component_index.len();
             let nwd = wd.shape()[0];
@@ -365,7 +365,8 @@ where
 
             let mut phi = Array::zeros(densities.raw_dim().remove_axis(Axis_nd(0)));
             let mut first_partial_derivative = Array::zeros(wd.raw_dim());
-            let mut second_partial_derivative = Array::zeros(dim);
+            let mut second_partial_derivative: Array<_, Ix3> =
+                Array::zeros(dim).into_dimensionality().unwrap();
             //let mut spd = Array::zeros(wd.raw_dim());
             let grad_weighted_density = self.gradient(&wd, dx)?;
             let lapl_weighted_density = self.gradient(&grad_weighted_density, dx)?;
@@ -388,8 +389,29 @@ where
             // !! MAKES SENSE ONLY IN 1D FOR NOW!! even though it should compile
             let grad_first_partial_derivative = self.gradient(&first_partial_derivative, dx)?;
             let lapl_first_partial_derivative =
-                self.gradient(&grad_first_partial_derivative, dx)?;
-            //let grad_second_partial_derivative = self.gradient(&second_partial_derivative, dx)?;
+                self.gradient(grad_first_partial_derivative.view(), dx)?;
+            let mut grad_second_partial_derivative =
+                Array::zeros(second_partial_derivative.raw_dim());
+            // let mut grad_second_partial_derivative: Array3<f64> =
+            //     Array::zeros(second_partial_derivative.raw_dim());
+
+            for (spd, mut res) in second_partial_derivative
+                .outer_iter()
+                .zip(grad_second_partial_derivative.outer_iter_mut())
+            {
+                res.assign(&self.gradient(spd, dx)?);
+            }
+
+            // grad_second_partial_derivative.assign(
+            //     &second_partial_derivative
+            //         .outer_iter()
+            //         .map(|x| self.gradient(&x.to_owned(), dx))
+            //         .collect(),
+            // );
+
+            // grad_second_partial_derivative
+            // .outer_iter_mut()
+            // .for_each(|x| self.gradient(&x, dx)?);
 
             // Initilaizing row index for non-local functional derivative
             let mut k = 0;
@@ -403,24 +425,47 @@ where
 
             // Calculating functional derivative {scalar, component}
             for wf_i in &wf.scalar_component_weighted_densities {
-                for (i, (((fpd, lapl), mut res0), mut res2)) in first_partial_derivative
+                for (
+                    i,
+                    ((fpd, spds), gradients_spd), // mut res0), //, mut res2), //((((((fpd, spds), gradients_spd), grad_wd), lapl_wd), mut res0), mut res2),
+                ) in first_partial_derivative
                     .slice_axis(Axis_nd(0), Slice::from(k..k + segments))
                     .outer_iter()
                     .zip(
-                        lapl_first_partial_derivative
+                        second_partial_derivative
                             .slice_axis(Axis_nd(0), Slice::from(k..k + segments))
                             .outer_iter(),
                     )
-                    .zip(functional_derivative_0.outer_iter_mut())
-                    .zip(functional_derivative_2.outer_iter_mut())
+                    .zip(
+                        grad_second_partial_derivative
+                            .slice_axis(Axis_nd(0), Slice::from(k..k + segments))
+                            .outer_iter(),
+                    )
+                    //.zip(functional_derivative_0.outer_iter_mut())
+                    //.zip(functional_derivative_2.outer_iter_mut())
                     .enumerate()
                 {
+                    functional_derivative_0
+                        .index_axis_mut(Axis_nd(0), i)
+                        .add_assign(&(&fpd * w0.slice(s![k..k + segments, ..]).into_diag()[i]));
+
+                    for (((spd, grad_spd), grad_wd), lapl_wd) in spds
+                        .outer_iter()
+                        .zip(gradients_spd.outer_iter())
+                        .zip(grad_weighted_density.outer_iter())
+                        .zip(lapl_weighted_density.outer_iter())
+                    {
+                        functional_derivative_2
+                            .index_axis_mut(Axis_nd(0), i)
+                            .add_assign(
+                                &((&grad_spd * &grad_wd + &spd * &lapl_wd)
+                                    * w2.slice(s![k..k + segments, ..]).into_diag()[i]),
+                            );
+                    }
                     //res.add_assign(
                     //    &(&fpd * w0.slice(s![k..k + segments, ..]).into_diag()[i]
                     //        + &lapl * w2.slice(s![k..k + segments, ..]).into_diag()[i]),
                     //);
-                    res0.add_assign(&(&fpd * w0.slice(s![k..k + segments, ..]).into_diag()[i]));
-                    res2.add_assign(&(&lapl * w2.slice(s![k..k + segments, ..]).into_diag()[i]));
                 }
                 k += segments;
             }
@@ -452,20 +497,32 @@ where
                     .zip(functional_derivative_2.outer_iter_mut())
                     .enumerate()
                 {
+                    res0.add_assign(
+                        &(&first_partial_derivative.index_axis(Axis_nd(0), k)
+                            * w0.slice(s![k, ..])[i]),
+                    );
+
+                    for (((spd, grad_spd), grad_wd), lapl_wd) in second_partial_derivative
+                        .index_axis(Axis_nd(0), k)
+                        .outer_iter()
+                        .zip(
+                            grad_second_partial_derivative
+                                .index_axis(Axis_nd(0), k)
+                                .outer_iter(),
+                        )
+                        .zip(grad_weighted_density.outer_iter())
+                        .zip(lapl_weighted_density.outer_iter())
+                    {
+                        res2.add_assign(
+                            &((&grad_spd * &grad_wd + &spd * &lapl_wd) * w2.slice(s![k, ..])[i]),
+                        );
+                    }
                     /* res.add_assign(
                         &(&first_partial_derivative.index_axis(Axis_nd(0), k)
                             * w0.slice(s![k, ..])[i]
                             + &lapl_first_partial_derivative.index_axis(Axis_nd(0), k)
                                 * w2.slice(s![k, ..])[i]),
                     );*/
-                    res0.add_assign(
-                        &(&first_partial_derivative.index_axis(Axis_nd(0), k)
-                            * w0.slice(s![k, ..])[i]),
-                    );
-                    res2.add_assign(
-                        &(&lapl_first_partial_derivative.index_axis(Axis_nd(0), k)
-                            * w2.slice(s![k, ..])[i]),
-                    );
                 }
                 k += 1;
             }
@@ -637,7 +694,7 @@ where
         ])
     }
 
-    pub fn gradient(&self, f: &Array<f64, Ix2>, dx: f64) -> EosResult<Array<f64, Ix2>> {
+    pub fn gradient(&self, f: ArrayView<f64, Ix2>, dx: f64) -> EosResult<Array<f64, Ix2>> {
         let grad = Array::from_shape_fn(f.raw_dim(), |(c, i)| {
             let d = if i == 0 {
                 2.0 * (f[(c, 1)] - f[(c, 0)]) // Left value --> where from?

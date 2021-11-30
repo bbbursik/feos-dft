@@ -167,14 +167,14 @@ macro_rules! impl_1d_profile {
                 Ok(n.into_iter().map(|n| n.view().to_pyarray(py)).collect())
             }
 
-
+            #[getter]
             fn get_local_functional_derivative<'py>(
                 &self,
-                d: &'py PyDict,
+                //d: &'py PyDict,
                 py: Python<'py>,
             ) -> PyResult<Vec<&'py PyArray2<f64>>> {
-                d.set_item("hi", 15)?;
-                d.set_item((1.0, 2.0), false)?;
+                //d.set_item("hi", 15)?;
+                //d.set_item((1.0, 2.0), false)?;
 //               Ok(self.0.profile.local_functional_derivative()?.view().to_pyarray(py))
                 let n = self.0.profile.local_functional_derivative()?;
                 Ok(n.into_iter().map(|n| n.view().to_pyarray(py)).collect())
