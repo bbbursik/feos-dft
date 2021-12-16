@@ -368,8 +368,8 @@ where
             let mut second_partial_derivative: Array<_, Ix3> =
                 Array::zeros(dim).into_dimensionality().unwrap();
             //let mut spd = Array::zeros(wd.raw_dim());
-            let grad_weighted_density = self.gradient(&wd, dx)?;
-            let lapl_weighted_density = self.gradient(&grad_weighted_density, dx)?;
+            let grad_weighted_density = self.gradient(wd.view(), dx)?;
+            let lapl_weighted_density = self.gradient(grad_weighted_density.view(), dx)?;
 
             c.second_partial_derivatives(
                 temperature,
@@ -387,7 +387,8 @@ where
 
             // calculate gradients of partial derivatives
             // !! MAKES SENSE ONLY IN 1D FOR NOW!! even though it should compile
-            let grad_first_partial_derivative = self.gradient(&first_partial_derivative, dx)?;
+            let grad_first_partial_derivative =
+                self.gradient(first_partial_derivative.view(), dx)?;
             let lapl_first_partial_derivative =
                 self.gradient(grad_first_partial_derivative.view(), dx)?;
             let mut grad_second_partial_derivative =
@@ -558,7 +559,7 @@ where
 
         let k0 = HyperDual64::from(0.0).derive1().derive2();
 
-        let weighted_densities = self.local_weighted_densities()?;
+        let weighted_densities = self.weighted_densities()?;
         let contributions = self.dft.functional.contributions();
         let mut functional_derivative_0 = Array::zeros(densities.raw_dim())
             .into_dimensionality()
@@ -598,9 +599,10 @@ where
 
             // calculate gradients of partial derivatives
             // !! MAKES SENSE ONLY IN 1D FOR NOW!! even though it should compile
-            let grad_first_partial_derivative = self.gradient(&first_partial_derivative, dx)?;
+            let grad_first_partial_derivative =
+                self.gradient(first_partial_derivative.view(), dx)?;
             let lapl_first_partial_derivative =
-                self.gradient(&grad_first_partial_derivative, dx)?;
+                self.gradient(grad_first_partial_derivative.view(), dx)?;
 
             // Initilaizing row index for non-local functional derivative
             let mut k = 0;
@@ -712,8 +714,8 @@ where
         let densities = self.density.to_reduced(U::reference_density())?; //.view()
         let dx = self.grid.grids()[0][1] - self.grid.grids()[0][0];
 
-        let gradient = self.gradient(&densities, dx)?;
-        let laplace = self.gradient(&gradient, dx)?;
+        let gradient = self.gradient(densities.view(), dx)?;
+        let laplace = self.gradient(gradient.view(), dx)?;
         let temperature =
             HyperDual64::from(self.temperature.to_reduced(U::reference_temperature())?);
 

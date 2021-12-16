@@ -70,7 +70,7 @@ impl<T, D: Dimension> FFTWeightFunctions<T, D> {
 pub struct GradConvolver<T, D: Dimension> {
     grid: Array<T, D>,
     weight_functions: Vec<WeightFunctionInfo<T>>,
-    weight_constants: Vec<Array<T>>,
+    weight_constants: Vec<Array<HyperDual64, D::Larger>>,
 }
 
 // impl<T, D: Dimension + 'static> GradConvolver<T, D>
@@ -94,13 +94,15 @@ impl<T> GradConvolver<T, Ix1>
 where
     T: DctNum + DualNum<f64> + ScalarOperand,
 {
-    fn new(
+    pub fn new(
         grid: Array<T, Ix1>,
         weight_functions: Vec<WeightFunctionInfo<T>>, //&[WeightFunctionInfo<T>],
+        weight_constants: Vec<Array<HyperDual64, Ix2>>,
     ) -> Rc<dyn Convolver<T, Ix1>> {
         Rc::new(Self {
             grid,
             weight_functions,
+            weight_constants,
         })
     }
 
@@ -132,9 +134,10 @@ where
     }
 
     fn weighted_densities(&self, density: &Array<T, Ix2>) -> Vec<Array<T, Ix2>> {
+        println!(" Called fn weighted_densities in GradConvolver");
         let dx = self.grid[1] - self.grid[0];
 
-        let gradient = self.gradient(&density, dx);
+        let gradient = self.gradient(density, dx);
         let laplace = self.gradient(&gradient, dx);
         // let temperature =
         //     HyperDual64::from(self.temperature.to_reduced(U::reference_temperature())?);
@@ -150,17 +153,21 @@ where
         let k0 = HyperDual64::from(0.0).derive1().derive2();
         let mut weighted_densities_vec = Vec::with_capacity(self.weight_functions.len());
 
-        let weight_functions_hd: Vec<WeightFunctionInfo<HyperDual64>> =
-            self.weight_functions as Vec<WeightFunctionInfo<HyperDual64>>;
+        // let weight_functions_hd: Vec<WeightFunctionInfo<HyperDual64>> =
+        // self.weight_functions as Vec<WeightFunctionInfo<HyperDual64>>;
 
         //loop over contributions
-        for wf in self.weight_functions.iter() {
+        for (wf, wc) in self
+            .weight_functions
+            .iter()
+            .zip(self.weight_constants.iter())
+        {
             let segments = wf.component_index.len();
             //let wf_hd = WeightFunctionInfo::from(HyperDual64::from(wf)); //brauche die wf als Hyperdual für die weight constants, aber es kommt aus Interface als f64 --> übergeben aus Interface
-            let w = wf.weight_constants(k0, 1); //can rewrite this with the corresponding function for the weight constants (i.e. scalar_weigth_const)
-            let w0 = w.mapv(|w| w.re);
-            let w1 = w.mapv(|w| -w.eps1[0]);
-            let w2 = w.mapv(|w| -0.5 * w.eps1eps2[(0, 0)]);
+            // let w = wf.weight_constants(k0, 1); //can rewrite this with the corresponding function for the weight constants (i.e. scalar_weigth_const)
+            let w0 = wc.mapv(|w| w.re);
+            let w1 = wc.mapv(|w| -w.eps1[0]);
+            let w2 = wc.mapv(|w| -0.5 * w.eps1eps2[(0, 0)]);
 
             // number of weighted densities
             let n_wd = wf.n_weighted_densities(1);
@@ -242,11 +249,160 @@ where
             weighted_densities_vec.push(weighted_densities);
         }
 
-        Ok(weighted_densities_vec)
+        weighted_densities_vec
     }
 
     fn functional_derivative(&self, partial_derivatives: &[Array<T, Ix2>]) -> Array<T, Ix2> {
-        unimplemented!();
+        println!(" Called fn functional_derivative in GradConvolver");
+
+        // let temperature = self.temperature.to_reduced(U::reference_temperature())?;
+        // println!("Version of 8:50");
+        let mut dim = vec![(self.weight_functions[0]).component_index.len()];
+        partial_derivatives[0]
+            .shape()
+            .iter()
+            .skip(1)
+            .for_each(|&d| dim.push(d));
+        // let mut functional_deriv = Array::zeros(dim).into_dimensionality().unwrap();
+
+        // let densities = self.density.to_reduced(U::reference_density())?; //.view()
+        let dx = self.grid[1] - self.grid[0];
+
+        let k0 = HyperDual64::from(0.0).derive1().derive2();
+
+        // let weighted_densities = self.weighted_densities()?;
+        // let contributions = self.dft.functional.contributions();
+        let mut functional_derivative_0: Array<T, Ix2> =
+            Array::zeros(dim).into_dimensionality().unwrap();
+        let mut functional_derivative_1: Array<T, Ix2> =
+            Array::zeros(functional_derivative_0.raw_dim())
+                .into_dimensionality()
+                .unwrap();
+        let mut functional_derivative_2: Array<T, Ix2> =
+            Array::zeros(functional_derivative_0.raw_dim())
+                .into_dimensionality()
+                .unwrap();
+        for ((wf, wc), pd) in self
+            .weight_functions
+            .iter()
+            .zip(self.weight_constants.iter())
+            .zip(partial_derivatives.iter())
+        {
+            // let wf = c.weight_functions(HyperDual64::from(temperature));
+            // let w = wf.weight_constants(k0, 1);
+            let w0 = wc.mapv(|w| w.re);
+            let w1 = wc.mapv(|w| -w.eps1[0]);
+            let w2 = wc.mapv(|w| -0.5 * w.eps1eps2[(0, 0)]);
+
+            let segments = wf.component_index.len();
+            // let nwd = wd.shape()[0];
+            // let ngrid = wd.len() / nwd;
+            // let mut phi = Array::zeros(densities.raw_dim().remove_axis(Axis_nd(0)));
+            // let mut first_partial_derivative = Array::zeros(wd.raw_dim());
+            // //let mut spd = Array::zeros(wd.raw_dim());
+            // c.first_partial_derivatives(
+            //     temperature,
+            //     wd.into_shape((nwd, ngrid)).unwrap(),
+            //     phi.view_mut().into_shape(ngrid).unwrap(),
+            //     first_partial_derivative
+            //         .view_mut()
+            //         .into_shape((nwd, ngrid))
+            //         .unwrap(),
+            // )?;
+
+            // calculate gradients of partial derivatives
+            // !! MAKES SENSE ONLY IN 1D FOR NOW!! even though it should compile
+            let grad_first_partial_derivative = self.gradient(pd, dx);
+            let lapl_first_partial_derivative = self.gradient(&grad_first_partial_derivative, dx);
+
+            // Initilaizing row index for non-local functional derivative
+            let mut k = 0;
+
+            // Assigning possible local densities to the front of the array
+            if wf.local_density {
+                functional_derivative_0 += &pd.slice_axis(Axis_nd(0), Slice::from(..segments));
+                k += segments;
+            }
+
+            // Calculating functional derivative {scalar, component}
+            for wf_i in &wf.scalar_component_weighted_densities {
+                for (i, (((fpd, lapl), mut res0), mut res2)) in pd
+                    .slice_axis(Axis_nd(0), Slice::from(k..k + segments))
+                    .outer_iter()
+                    .zip(
+                        lapl_first_partial_derivative
+                            .slice_axis(Axis_nd(0), Slice::from(k..k + segments))
+                            .outer_iter(),
+                    )
+                    .zip(functional_derivative_0.outer_iter_mut())
+                    .zip(functional_derivative_2.outer_iter_mut())
+                    .enumerate()
+                {
+                    //res.add_assign(
+                    //    &(&fpd * w0.slice(s![k..k + segments, ..]).into_diag()[i]
+                    //        + &lapl * w2.slice(s![k..k + segments, ..]).into_diag()[i]),
+                    //);
+                    res0.add_assign(&(&fpd * w0.slice(s![k..k + segments, ..]).into_diag()[i]));
+                    res2.add_assign(&(&lapl * w2.slice(s![k..k + segments, ..]).into_diag()[i]));
+                }
+                k += segments;
+            }
+
+            // Calculating functional derivative {vector, component}
+            for wf_i in &wf.vector_component_weighted_densities {
+                for (i, (grad, mut res1)) in grad_first_partial_derivative
+                    .slice_axis(Axis_nd(0), Slice::from(k..k + segments))
+                    .outer_iter()
+                    .zip(functional_derivative_1.outer_iter_mut())
+                    .enumerate()
+                {
+                    res1.add_assign(&(&grad * (-w1.slice(s![k..k + segments, ..]).into_diag()[i])));
+                }
+                k += segments;
+            }
+
+            // Calculating functional derivative {scalar, FMT}
+            for wf_i in &wf.scalar_fmt_weighted_densities {
+                for (i, (mut res0, mut res2)) in functional_derivative_0
+                    .outer_iter_mut()
+                    .zip(functional_derivative_2.outer_iter_mut())
+                    .enumerate()
+                {
+                    /* res.add_assign(
+                        &(&first_partial_derivative.index_axis(Axis_nd(0), k)
+                            * w0.slice(s![k, ..])[i]
+                            + &lapl_first_partial_derivative.index_axis(Axis_nd(0), k)
+                                * w2.slice(s![k, ..])[i]),
+                    );*/
+                    res0.add_assign(&(&pd.index_axis(Axis_nd(0), k) * w0.slice(s![k, ..])[i]));
+                    res2.add_assign(
+                        &(&lapl_first_partial_derivative.index_axis(Axis_nd(0), k)
+                            * w2.slice(s![k, ..])[i]),
+                    );
+                }
+                k += 1;
+            }
+
+            // Calculating functional derivative {vector, FMT}
+            // !! WORKS FOR 1D ONLY!!
+            for wf_i in &wf.vector_fmt_weighted_densities {
+                for (i, mut res1) in functional_derivative_1.outer_iter_mut().enumerate() {
+                    res1.add_assign(
+                        &(&grad_first_partial_derivative.index_axis(Axis_nd(0), k)
+                            * (-w1.slice(s![k, ..])[i])),
+                    );
+                }
+                k += 1;
+            }
+        }
+
+        // Ok(vec![
+        //     functional_derivative_0,
+        //     functional_derivative_1,
+        //     functional_derivative_2,
+        // ])
+        let result = functional_derivative_0 + functional_derivative_1 + functional_derivative_2;
+        result
     }
 }
 

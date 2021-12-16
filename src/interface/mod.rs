@@ -1,11 +1,12 @@
 //! Density profiles at planar interfaces and interfacial tensions.
-use crate::convolver::ConvolverFFT;
+use crate::convolver::{ConvolverFFT, GradConvolver};
 use crate::functional::{HelmholtzEnergyFunctional, DFT};
 use crate::geometry::{Axis, Grid};
 use crate::profile::{DFTProfile, DFTSpecifications};
 use crate::solver::DFTSolver;
 use feos_core::{Contributions, EosError, EosResult, EosUnit, PhaseEquilibrium};
 use ndarray::{s, Array, Array1, Array2, Axis as Axis_nd, Ix1};
+use num_dual::{HyperDual64, HyperDualVec, HyperDualVec64};
 use quantity::{QuantityArray1, QuantityArray2, QuantityScalar};
 
 mod surface_tension_diagram;
@@ -67,6 +68,7 @@ impl<U: EosUnit, F: HelmholtzEnergyFunctional> PlanarInterface<U, F> {
         vle: &PhaseEquilibrium<U, DFT<F>, 2>,
         n_grid: usize,
         l_grid: QuantityScalar<U>,
+        local_flag: bool,
     ) -> EosResult<Self> {
         let dft = &vle.vapor().eos;
 
@@ -78,15 +80,47 @@ impl<U: EosUnit, F: HelmholtzEnergyFunctional> PlanarInterface<U, F> {
             .vapor()
             .temperature
             .to_reduced(U::reference_temperature())?;
-        let weight_functions = dft.functional.weight_functions(t);
-        let convolver = ConvolverFFT::plan(&grid, &weight_functions, None);
 
-        Ok(Self {
-            profile: DFTProfile::new(grid, convolver, vle.vapor(), None)?,
-            vle: vle.clone(),
-            surface_tension: None,
-            equimolar_radius: None,
-        })
+        let weight_functions = dft.functional.weight_functions(t);
+
+        if local_flag {
+            // for local version
+
+            let weight_functions_hd: Vec<_> = dft
+                .functional
+                .contributions()
+                .iter()
+                .map(|c| c.weight_functions(HyperDual64::from(t)))
+                .collect();
+
+            let k0 = HyperDual64::from(0.0).derive1().derive2();
+
+            let weight_constants: Vec<_> = weight_functions_hd
+                .iter()
+                .map(|w| w.weight_constants(k0, 1))
+                .collect();
+            let convolver = GradConvolver::new(
+                (Axis::new_cartesian(n_grid, l_grid, None)?).grid,
+                weight_functions,
+                weight_constants,
+            );
+
+            Ok(Self {
+                profile: DFTProfile::new(grid, convolver, vle.vapor(), None)?,
+                vle: vle.clone(),
+                surface_tension: None,
+                equimolar_radius: None,
+            })
+        } else {
+            let convolver = ConvolverFFT::plan(&grid, &weight_functions, None);
+
+            Ok(Self {
+                profile: DFTProfile::new(grid, convolver, vle.vapor(), None)?,
+                vle: vle.clone(),
+                surface_tension: None,
+                equimolar_radius: None,
+            })
+        }
     }
 
     pub fn from_tanh(
@@ -94,8 +128,9 @@ impl<U: EosUnit, F: HelmholtzEnergyFunctional> PlanarInterface<U, F> {
         n_grid: usize,
         l_grid: QuantityScalar<U>,
         critical_temperature: QuantityScalar<U>,
+        local_flag: bool,
     ) -> EosResult<Self> {
-        let mut profile = Self::new(vle, n_grid, l_grid)?;
+        let mut profile = Self::new(vle, n_grid, l_grid, local_flag)?;
 
         // calculate segment indices
         let indices = &profile.profile.dft.component_index;
@@ -150,7 +185,7 @@ impl<U: EosUnit, F: HelmholtzEnergyFunctional> PlanarInterface<U, F> {
         let l_grid = (MIN_WIDTH * U::reference_length())
             .max(w_pdgt * RELATIVE_WIDTH)
             .unwrap();
-        let mut profile = Self::new(vle, n_grid, l_grid)?;
+        let mut profile = Self::new(vle, n_grid, l_grid, false)?;
 
         // interpolate density profile from pDGT to DFT
         let r = l_grid * 0.5;

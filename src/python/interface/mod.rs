@@ -24,24 +24,28 @@ macro_rules! impl_planar_interface {
             /// critical_temperature: SINumber
             ///     An estimate for the critical temperature of the system.
             ///     Used to guess the width of the interface.
+            /// local_flag:bool
+            ///     If true should choose GradConvolver
             ///
             /// Returns
             /// -------
             /// PlanarInterface
             ///
             #[staticmethod]
-            #[pyo3(text_signature = "(vle, n_grid, l_grid, critical_temperature)")]
+            #[pyo3(text_signature = "(vle, n_grid, l_grid, critical_temperature, local_flag)")]
             fn from_tanh(
                 vle: &PyPhaseEquilibrium,
                 n_grid: usize,
                 l_grid: PySINumber,
                 critical_temperature: PySINumber,
+                local_flag: bool,
             ) -> PyResult<Self> {
                 let profile = PlanarInterface::from_tanh(
                     &vle.0,
                     n_grid,
                     l_grid.into(),
                     critical_temperature.into(),
+                    local_flag,
                 )?;
                 Ok(PyPlanarInterface(profile))
             }
@@ -91,7 +95,7 @@ macro_rules! impl_planar_interface {
                 l_grid: PySINumber,
                 density_profile: PySIArray2,
             ) -> PyResult<Self> {
-                let mut profile = PlanarInterface::new(&vle.0, n_grid, l_grid.into())?;
+                let mut profile = PlanarInterface::new(&vle.0, n_grid, l_grid.into(), None)?;
                 profile.profile.density = density_profile.into();
                 Ok(PyPlanarInterface(profile))
             }
