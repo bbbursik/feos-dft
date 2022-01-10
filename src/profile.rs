@@ -126,6 +126,7 @@ impl<U: EosUnit, D: Dimension, F: HelmholtzEnergyFunctional> DFTSpecification<U,
 pub struct DFTProfile<U, D: Dimension, F> {
     pub grid: Grid,
     pub convolver: Rc<dyn Convolver<f64, D>>,
+    pub convolver_wd: Rc<dyn Convolver<f64, D>>,
     pub dft: Rc<DFT<F>>,
     pub temperature: QuantityScalar<U>,
     pub density: QuantityArray<U, D::Larger>,
@@ -197,6 +198,7 @@ where
     pub fn new(
         grid: Grid,
         convolver: Rc<dyn Convolver<f64, D>>,
+        convolver_wd: Rc<dyn Convolver<f64, D>>,
         bulk: &State<U, DFT<F>>,
         external_potential: Option<Array<f64, D::Larger>>,
     ) -> EosResult<Self> {
@@ -228,6 +230,7 @@ where
         Ok(Self {
             grid,
             convolver,
+            convolver_wd,
             dft: bulk.eos.clone(),
             temperature: bulk.temperature,
             density: density * U::reference_density(),
@@ -311,6 +314,7 @@ impl<U: Clone, D: Dimension, F> Clone for DFTProfile<U, D, F> {
         Self {
             grid: self.grid.clone(),
             convolver: self.convolver.clone(),
+            convolver_wd: self.convolver_wd.clone(),
             dft: self.dft.clone(),
             temperature: self.temperature.clone(),
             density: self.density.clone(),
@@ -329,7 +333,7 @@ where
 {
     pub fn local_functional_derivative_v2(&self) -> EosResult<Vec<Array<f64, Ix2>>> {
         let temperature = self.temperature.to_reduced(U::reference_temperature())?;
-        println!("Version of 12:01");
+        // println!("Version of 12:01");
         let densities = self.density.to_reduced(U::reference_density())?; //.view()
         let dx = self.grid.grids()[0][1] - self.grid.grids()[0][0];
 
@@ -553,7 +557,7 @@ where
 
     pub fn local_functional_derivative(&self) -> EosResult<Vec<Array<f64, Ix2>>> {
         let temperature = self.temperature.to_reduced(U::reference_temperature())?;
-        println!("Version of 8:50");
+        // println!("Version of 8:50");
         let densities = self.density.to_reduced(U::reference_density())?; //.view()
         let dx = self.grid.grids()[0][1] - self.grid.grids()[0][0];
 
@@ -577,9 +581,9 @@ where
             let w1 = w.mapv(|w| -w.eps1[0]);
             let w2 = w.mapv(|w| -0.5 * w.eps1eps2[(0, 0)]);
 
-            println!("w0 = {:?}", w0);
-            println!("w1 = {:?}", w1);
-            println!("w2 = {:?}", w2);
+            // println!("w0 = {:?}", w0);
+            // println!("w1 = {:?}", w1);
+            // println!("w2 = {:?}", w2);
 
             let segments = wf.component_index.len();
             let nwd = wd.shape()[0];
@@ -833,7 +837,7 @@ where
 {
     pub fn weighted_densities(&self) -> EosResult<Vec<Array<f64, D::Larger>>> {
         Ok(self
-            .convolver
+            .convolver_wd
             .weighted_densities(&self.density.to_reduced(U::reference_density())?))
     }
 
@@ -842,6 +846,7 @@ where
             self.temperature.to_reduced(U::reference_temperature())?,
             &self.density.to_reduced(U::reference_density())?,
             &self.convolver,
+            &self.convolver_wd,
         )?;
         Ok(dfdrho)
     }
@@ -895,7 +900,7 @@ where
         // calculate intrinsic functional derivative
         let (_, mut dfdrho) =
             self.dft
-                .functional_derivative(temperature, density, &self.convolver)?;
+                .functional_derivative(temperature, density, &self.convolver, &self.convolver_wd)?;
 
         // calculate total functional derivative
         dfdrho += &self.external_potential;

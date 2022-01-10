@@ -25,6 +25,7 @@ numpy = { version = "0.14", optional = true }
 libc = "0.2"
 gauss-quad = "0.1"
 petgraph = "0.6"
+ndarray-npy = "*"
 
 [dependencies.pyo3]
 version = "0.14"

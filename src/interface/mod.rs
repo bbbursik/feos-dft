@@ -45,6 +45,7 @@ impl<U: EosUnit, F: HelmholtzEnergyFunctional> PlanarInterface<U, F> {
                 self.profile.temperature,
                 &self.profile.density,
                 &self.profile.convolver,
+                &self.profile.convolver_wd,
             )? + self.vle.vapor().pressure(Contributions::Total)),
         ));
         let delta_rho = self.vle.liquid().density - self.vle.vapor().density;
@@ -93,6 +94,8 @@ impl<U: EosUnit, F: HelmholtzEnergyFunctional> PlanarInterface<U, F> {
                 .map(|c| c.weight_functions(HyperDual64::from(t)))
                 .collect();
 
+            let convolver_wd = ConvolverFFT::plan(&grid, &weight_functions, None);
+
             let k0 = HyperDual64::from(0.0).derive1().derive2();
 
             let weight_constants: Vec<_> = weight_functions_hd
@@ -106,16 +109,17 @@ impl<U: EosUnit, F: HelmholtzEnergyFunctional> PlanarInterface<U, F> {
             );
 
             Ok(Self {
-                profile: DFTProfile::new(grid, convolver, vle.vapor(), None)?,
+                profile: DFTProfile::new(grid, convolver, convolver_wd,vle.vapor(), None)?,
                 vle: vle.clone(),
                 surface_tension: None,
                 equimolar_radius: None,
             })
         } else {
             let convolver = ConvolverFFT::plan(&grid, &weight_functions, None);
+            let convolver_wd = ConvolverFFT::plan(&grid, &weight_functions, None);
 
             Ok(Self {
-                profile: DFTProfile::new(grid, convolver, vle.vapor(), None)?,
+                profile: DFTProfile::new(grid, convolver, convolver_wd, vle.vapor(), None)?,
                 vle: vle.clone(),
                 surface_tension: None,
                 equimolar_radius: None,

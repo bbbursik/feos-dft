@@ -24,7 +24,7 @@ macro_rules! impl_planar_interface {
             /// critical_temperature: SINumber
             ///     An estimate for the critical temperature of the system.
             ///     Used to guess the width of the interface.
-            /// local_flag:bool
+            /// local_flag: bool
             ///     If true should choose GradConvolver
             ///
             /// Returns
@@ -95,7 +95,7 @@ macro_rules! impl_planar_interface {
                 l_grid: PySINumber,
                 density_profile: PySIArray2,
             ) -> PyResult<Self> {
-                let mut profile = PlanarInterface::new(&vle.0, n_grid, l_grid.into(), None)?;
+                let mut profile = PlanarInterface::new(&vle.0, n_grid, l_grid.into(), false)?;
                 profile.profile.density = density_profile.into();
                 Ok(PyPlanarInterface(profile))
             }

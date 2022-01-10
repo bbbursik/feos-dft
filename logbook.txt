@@ -1,0 +1,18 @@
+This is a log about the current state of programming:
+
+date: 21-12-22
+
+current objective: solve with convolver, use fft wd and grad fd
+
+current state:
+- "dirty" version where at many positions changed call to DFTProfile new to include two convolvers, FFT and FFT/Grad depending on local flag
+- possible to use convolver with wd from FFT and fd from GradConvolver
+- in principal solve starts but does crash at some point due to fluctuations at the boundaries
+	- possible reasons: - bad implementation of fn gradient (dont know boundary values!)
+				- density at the boundaries does not stay constant even when using FFT --> should it be like this??
+- maybe makes sense to try v2 of local_functional_derivative in solver --> use gradients several time, should be worse!!
+- still have two versions to calculate local functional derivative with
+  individual terms
+
+				 
+

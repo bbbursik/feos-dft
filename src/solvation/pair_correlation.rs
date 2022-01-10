@@ -57,9 +57,10 @@ impl<U: EosUnit, F: HelmholtzEnergyFunctional + PairPotential> PairCorrelation<U
         let grid = Grid::Spherical(axis);
         let weight_functions = dft.functional.weight_functions(t);
         let convolver = ConvolverFFT::plan(&grid, &weight_functions, Some(1));
+        let convolver_wd = ConvolverFFT::plan(&grid, &weight_functions, Some(1));
 
         Ok(Self {
-            profile: DFTProfile::new(grid, convolver, bulk, Some(external_potential))?,
+            profile: DFTProfile::new(grid, convolver, convolver_wd, bulk, Some(external_potential))?,
             pair_correlation_function: None,
             self_solvation_free_energy: None,
             structure_factor: None,
@@ -79,6 +80,7 @@ impl<U: EosUnit, F: HelmholtzEnergyFunctional + PairPotential> PairCorrelation<U
             &(self.profile.dft.grand_potential_density(
                 self.profile.temperature,
                 &self.profile.density,
+                &self.profile.convolver,
                 &self.profile.convolver,
             )? + self.profile.bulk.pressure(Contributions::Total)),
         ));

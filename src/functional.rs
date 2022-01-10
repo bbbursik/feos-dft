@@ -144,6 +144,7 @@ impl<T: HelmholtzEnergyFunctional> DFT<T> {
         temperature: QuantityScalar<U>,
         density: &QuantityArray<U, D::Larger>,
         convolver: &Rc<dyn Convolver<f64, D>>,
+        convolver_wd: &Rc<dyn Convolver<f64, D>>,
     ) -> EosResult<QuantityArray<U, D>>
     where
         U: EosUnit,
@@ -153,7 +154,7 @@ impl<T: HelmholtzEnergyFunctional> DFT<T> {
         // Calculate residual Helmholtz energy density and functional derivative
         let t = temperature.to_reduced(U::reference_temperature()).unwrap();
         let rho = density.to_reduced(U::reference_density()).unwrap();
-        let (mut f, dfdrho) = self.functional_derivative(t, &rho, convolver)?;
+        let (mut f, dfdrho) = self.functional_derivative(t, &rho, convolver, convolver_wd)?;
 
         // calculate the grand potential density
         for ((rho, dfdrho), &m) in rho.outer_iter().zip(dfdrho.outer_iter()).zip(self.m.iter()) {
@@ -296,12 +297,13 @@ impl<T: HelmholtzEnergyFunctional> DFT<T> {
         temperature: f64,
         density: &Array<f64, D::Larger>,
         convolver: &Rc<dyn Convolver<f64, D>>,
+        convolver_wd: &Rc<dyn Convolver<f64, D>>,
     ) -> EosResult<(Array<f64, D>, Array<f64, D::Larger>)>
     where
         D: Dimension,
         D::Larger: Dimension<Smaller = D>,
     {
-        let weighted_densities = convolver.weighted_densities(density);
+        let weighted_densities = convolver_wd.weighted_densities(density);
         let contributions = self.functional.contributions();
         let mut partial_derivatives = Vec::with_capacity(contributions.len());
         let mut helmholtz_energy_density = Array::zeros(density.raw_dim().remove_axis(Axis(0)));
