@@ -274,6 +274,8 @@ where
     fn functional_derivative(
         &self,
         partial_derivatives: &[Array<T, D::Larger>],
+        second_partial_derivatives: &[Array<T, <D::Larger as Dimension>::Larger>],
+        weighted_densities: &[Array<T, D::Larger>],
     ) -> Array<T, D::Larger> {
         // Allocate arrays for the the local contribution to the functional derivative
         // and the functional derivative in Fourier space

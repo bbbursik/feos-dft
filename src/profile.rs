@@ -898,9 +898,12 @@ where
         bulk.update_chemical_potential(&(mu_comp * temperature * U::reference_molar_energy()))?;
 
         // calculate intrinsic functional derivative
-        let (_, mut dfdrho) =
-            self.dft
-                .functional_derivative(temperature, density, &self.convolver, &self.convolver_wd)?;
+        let (_, mut dfdrho) = self.dft.functional_derivative(
+            temperature,
+            density,
+            &self.convolver,
+            &self.convolver_wd,
+        )?;
 
         // calculate total functional derivative
         dfdrho += &self.external_potential;

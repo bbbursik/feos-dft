@@ -109,7 +109,7 @@ impl<U: EosUnit, F: HelmholtzEnergyFunctional> PlanarInterface<U, F> {
             );
 
             Ok(Self {
-                profile: DFTProfile::new(grid, convolver, convolver_wd,vle.vapor(), None)?,
+                profile: DFTProfile::new(grid, convolver, convolver_wd, vle.vapor(), None)?,
                 vle: vle.clone(),
                 surface_tension: None,
                 equimolar_radius: None,
@@ -157,7 +157,7 @@ impl<U: EosUnit, F: HelmholtzEnergyFunctional> PlanarInterface<U, F> {
         // specify specification
         profile.profile.specification =
             DFTSpecifications::total_moles_from_profile(&profile.profile)?;
-
+        println!("Version with total moles");
         Ok(profile)
     }
 

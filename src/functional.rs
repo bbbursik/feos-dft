@@ -306,12 +306,29 @@ impl<T: HelmholtzEnergyFunctional> DFT<T> {
         let weighted_densities = convolver_wd.weighted_densities(density);
         let contributions = self.functional.contributions();
         let mut partial_derivatives = Vec::with_capacity(contributions.len());
+
+        // new
+        let mut second_partial_derivatives = Vec::with_capacity(contributions.len());
+
         let mut helmholtz_energy_density = Array::zeros(density.raw_dim().remove_axis(Axis(0)));
         for (c, wd) in contributions.iter().zip(weighted_densities) {
             let nwd = wd.shape()[0];
             let ngrid = wd.len() / nwd;
             let mut phi = Array::zeros(density.raw_dim().remove_axis(Axis(0)));
             let mut pd = Array::zeros(wd.raw_dim());
+
+            // new
+            let mut dim = vec![nwd, nwd];
+            wd.shape().iter().skip(1).for_each(|&d| dim.push(d));
+            let mut spd = Array::zeros(dim);
+            c.second_partial_derivatives(
+                temperature,
+                wd.into_shape((nwd, ngrid)).unwrap(),
+                phi.view_mut().into_shape(ngrid).unwrap(),
+                pd.view_mut().into_shape((nwd, ngrid)).unwrap(),
+                spd.view_mut().into_shape((nwd, nwd, ngrid)).unwrap(),
+            )?;
+
             c.first_partial_derivatives(
                 temperature,
                 wd.into_shape((nwd, ngrid)).unwrap(),
@@ -323,7 +340,11 @@ impl<T: HelmholtzEnergyFunctional> DFT<T> {
         }
         Ok((
             helmholtz_energy_density,
-            convolver.functional_derivative(&partial_derivatives),
+            convolver.functional_derivative(
+                &partial_derivatives,
+                &second_partial_derivatives,
+                &weighted_densities,
+            ),
         ))
     }
 
