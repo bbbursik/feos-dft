@@ -113,31 +113,58 @@ where
         // println!("grad version: 17:16");
         let grad = Array::from_shape_fn(f.raw_dim(), |(c, i)| {
             let d = if i == 0 {
-                (f[(c, 2)] - f[(c, 0)]) * 0.0 // Left value --> where from?
-                                              // (f[(c, 1)] - f[(c, 0)]) * 2.0 // Left value --> where from?
+                // (f[(c, 2)] - f[(c, 0)]) * 0.0 // Left value --> where from?
+                (f[(c, 1)] - f[(c, 0)]) * 2.0 // Left value --> where from?
             } else if i == f.shape()[1] - 1 {
-                (f[(c, f.shape()[1] - 1)] - f[(c, f.shape()[1] - 3)]) * 0.0
+                // (f[(c, f.shape()[1] - 1)] - f[(c, f.shape()[1] - 3)]) * 0.0
 
-                // (f[(c, f.shape()[1] - 1)] - f[(c, f.shape()[1] - 2)]) * 2.0
+                (f[(c, f.shape()[1] - 1)] - f[(c, f.shape()[1] - 2)]) * 2.0
             } else {
-                f[(c, i + 1)] - f[(c, i - 1)]
+                // f[(c, i + 1)] - f[(c, i - 1)] //central
+                (f[(c, i + 1)] - f[(c, i )]) *2.0 //forward
             };
             d / (dx * 2.0)
         });
         grad
     }
+
+
+    pub fn gradient_3d(&self, f: &Array<T, Ix3>, dx: T) -> Array<T, Ix3> {
+        // println!("grad version: 17:16");
+        let grad = Array::from_shape_fn(f.raw_dim(), |(c1,c2,  i)| {
+            let d = if i == 0 {
+                // (f[(c1, c2, 2)] - f[(c1, c2, 0)]) * 0.0 // Left value --> where from?
+                (f[(c1,c2, 1)] - f[(c1,c2, 0)]) * 2.0 // Left value --> where from?
+            } else if i == f.shape()[2] - 1 {
+                // (f[(c1, c2, f.shape()[2] - 1)] - f[(c1, c2, f.shape()[2] - 3)]) * 0.0
+
+                (f[(c1,c2, f.shape()[2] - 1)] - f[(c1,c2, f.shape()[2] - 2)]) * 2.0
+            } else {
+                // f[(c1, c2, i + 1)] - f[(c1, c2, i - 1)]
+               ( f[(c1, c2, i + 1)] - f[(c1, c2, i )] )*2.0
+            };
+            d / (dx * 2.0)
+        });
+        grad
+    }
+
     pub fn laplace(&self, f: &Array<T, Ix2>, dx: T) -> Array<T, Ix2> {
         // println!("grad version: 17:16");
         let lapl = Array::from_shape_fn(f.raw_dim(), |(c, i)| {
             let d = if i == 0 {
-                (f[(c, 2)] - f[(c, 0)]) * 0.0 // Left value --> where from?
-                                              // (f[(c, 1)] - f[(c, 0)]) * 2.0 // Left value --> where from?
+                // (f[(c, 2)] - f[(c, 0)]) * 0.0 // Left value --> where from?
+                f[(c,2)]-f[(c, 1)]*2.0 + f[(c, 0)]// Left value --> where from?
             } else if i == f.shape()[1] - 1 {
-                (f[(c, f.shape()[1] - 1)] - f[(c, f.shape()[1] - 3)]) * 0.0
+                // (f[(c, f.shape()[1] - 1)] - f[(c, f.shape()[1] - 3)]) * 0.0
 
-                // (f[(c, f.shape()[1] - 1)] - f[(c, f.shape()[1] - 2)]) * 2.0
+                f[(c, f.shape()[1] - 1)] -  f[(c, f.shape()[1] - 2)] *2.0 + f[(c,f.shape()[1]-3)]
+            } else if i == f.shape()[1] - 2 {
+                // (f[(c, f.shape()[1] - 1)] - f[(c, f.shape()[1] - 3)]) * 0.0
+
+                f[(c, f.shape()[1] - 2)] -  f[(c, f.shape()[1] - 3)] *2.0 + f[(c,f.shape()[1]-4)]
             } else {
-                f[(c, i + 1)] - f[(c, i)] * 2.0 + f[(c, i - 1)]
+                // f[(c, i + 1)] - f[(c, i)] * 2.0 + f[(c, i - 1)]
+                f[(c, i + 2)] - f[(c, i+1)] * 2.0 + f[(c, i )]
             };
             d / (dx * dx)
         });
@@ -147,7 +174,7 @@ where
 
 impl<T> Convolver<T, Ix1> for GradConvolver<T, Ix1>
 where
-    T: DctNum + DualNum<f64> + ScalarOperand + ndarray_npy::WritableElement,
+    T: DctNum + DualNum<f64> + ScalarOperand + ndarray_npy::WritableElement, //last one just for writing into file for debugging 
 {
     fn convolve(
         &self,
@@ -275,8 +302,9 @@ where
 
         weighted_densities_vec
     }
-    /*
-        fn functional_derivative(&self, partial_derivatives: &[Array<T, Ix2>]) -> Array<T, Ix2> {
+    
+        fn functional_derivative(&self, partial_derivatives: &[Array<T, Ix2>], second_partial_derivatives: &[Array<T, Ix3>],
+            weighted_densities: &[Array<T, Ix2>]) -> Array<T, Ix2> {
             // println!(" Called fn functional_derivative in GradConvolver");
 
             // let temperature = self.temperature.to_reduced(U::reference_temperature())?;
@@ -314,7 +342,7 @@ where
                 .enumerate()
             {
                 // let wf = c.weight_functions(HyperDual64::from(temperature));
-                // let w = wf.weight_constants(k0, 1);
+                // let w = wf.weight_constants(k0, 1);  
                 let w0 = wc.mapv(|w| w.re);
                 let w1 = wc.mapv(|w| -w.eps1[0]);
                 let w2 = wc.mapv(|w| -0.5 * w.eps1eps2[(0, 0)]);
@@ -344,6 +372,9 @@ where
                 write_npy(filename0 + "_grad_fpd.npy", &grad_first_partial_derivative).unwrap();
                 let filename1 = i.to_string().to_owned();
                 write_npy(filename1 + "_lapl_fpd.npy", &lapl_first_partial_derivative).unwrap();
+                
+                let filename2 = i.to_string().to_owned();
+                write_npy(filename2 + "_firstpd.npy", pd).unwrap();
                 // println!("write npy");
 
                 // Initilaizing row index for non-local functional derivative
@@ -432,11 +463,16 @@ where
             //     functional_derivative_1,
             //     functional_derivative_2,
             // ])
+
+            write_npy( "fd0.npy", &functional_derivative_0).unwrap();
+            write_npy( "fd1.npy", &functional_derivative_1).unwrap();
+            write_npy( "fd2.npy", &functional_derivative_2).unwrap();
+           
             let result = functional_derivative_0 + functional_derivative_1 + functional_derivative_2;
             result
         }
-    */
-
+    
+    /* 
     //  This is v2 of the functional derivative, where gradients are calculated for individual terms
     fn functional_derivative(
         &self,
@@ -476,6 +512,7 @@ where
         // let contributions = self.dft.functional.contributions();
 
         for (i, ((((wf, wc), pd), secparder), wd)) in self
+        // for (i, (((wf, wc), pd), secparder)) in self
             .weight_functions
             .iter()
             .zip(self.weight_constants.iter())
@@ -519,21 +556,21 @@ where
             // )?;
 
             // calculate gradients of partial derivatives
-            // !! MAKES SENSE ONLY IN 1D FOR NOW!! even though it should compile
             let grad_first_partial_derivative = self.gradient(pd, dx);
             let lapl_first_partial_derivative = self.laplace(pd, dx);
-            let mut grad_second_partial_derivative = Array::zeros(secparder.raw_dim());
+            let mut grad_second_partial_derivative= self.gradient_3d(secparder,dx);
+            // let mut grad_second_partial_derivative: Array3<T> = Array::zeros(secparder.raw_dim());
             // let mut grad_second_partial_derivative: Array3<f64> =
             //     Array::zeros(second_partial_derivative.raw_dim());
 
-            for (spd, mut res) in secparder
-                .outer_iter()
-                .zip(grad_second_partial_derivative.outer_iter_mut())
-            {
-                let grad = self.gradient(spd, dx);
-                res.assign(&grad);
-                // res.assign(&self.gradient(spd, dx));
-            }
+            // for (spd, mut res) in secparder
+            //     .outer_iter()
+            //     .zip(grad_second_partial_derivative.outer_iter_mut())
+            // {
+            //     let grad = self.gradient(spd, dx);
+            //     res.assign(&grad);
+            //     // res.assign(&self.gradient(spd, dx));
+            // }
 
             // grad_second_partial_derivative.assign(
             //     &second_partial_derivative
@@ -613,7 +650,7 @@ where
                     for (spd, grad_wd) in spds.outer_iter().zip(grad_weighted_density.outer_iter())
                     {
                         res1.add_assign(
-                            &(-&spd
+                            &(&spd * (-1.0)
                                 * &grad_wd
                                 * (w1.slice(s![k..k + segments, ..]).into_diag()[i])),
                         );
@@ -665,7 +702,7 @@ where
                         .outer_iter()
                         .zip(grad_weighted_density.outer_iter())
                     {
-                        res1.add_assign(&(-&spd * &grad_wd * w1.slice(s![k, ..])[i]));
+                        res1.add_assign(&(&spd *(-1.0)* &grad_wd * w1.slice(s![k, ..])[i]));
                     }
                 }
                 k += 1;
@@ -677,9 +714,16 @@ where
         //     functional_derivative_1,
         //     functional_derivative_2,
         // ])
+
+        // let filename0 = i.to_string().to_owned();
+        write_npy( "fd0.npy", &functional_derivative_0).unwrap();
+        write_npy( "fd1.npy", &functional_derivative_1).unwrap();
+        write_npy( "fd2.npy", &functional_derivative_2).unwrap();
+        
+
         let result = functional_derivative_0 + functional_derivative_1 + functional_derivative_2;
         result
-    }
+    } */
 }
 
 /// Convolver for 1-D, 2-D & 3-D systems using FFT algorithms to efficiently
