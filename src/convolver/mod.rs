@@ -112,37 +112,80 @@ where
     pub fn gradient(&self, f: &Array<T, Ix2>, dx: T) -> Array<T, Ix2> {
         // println!("grad version: 17:16");
         let grad = Array::from_shape_fn(f.raw_dim(), |(c, i)| {
-            let d = if i == 0 {
-                // (f[(c, 2)] - f[(c, 0)]) * 0.0 // Left value --> where from?
-                (f[(c, 1)] - f[(c, 0)]) * 2.0 // Left value --> where from?
-            } else if i == f.shape()[1] - 1 {
-                // (f[(c, f.shape()[1] - 1)] - f[(c, f.shape()[1] - 3)]) * 0.0
-
-                (f[(c, f.shape()[1] - 1)] - f[(c, f.shape()[1] - 2)]) * 2.0
+            let width:usize = 6;
+            let width_f64 = width as f64;
+            let d = if i as isize - width as isize <= 0 {
+                (f[(c, i + width)] - f[(c, i)]) * 0.0 // Left value --> where from?
+            } else if i + width >= f.shape()[1] - 1 {
+                (f[(c, i)] - f[(c, i - width)]) * 0.0
             } else {
-                f[(c, i + 1)] - f[(c, i - 1)] //central
-                                              // (f[(c, i + 1)] - f[(c, i)]) * 2.0 //forward
+                f[(c, i + width)] - f[(c, i - width)]
+                // (f[(c, i + 1)] - f[(c, i)]) * 2.0
             };
-            d / (dx * 2.0)
+            d / (dx * 2.0 * width_f64)
         });
         grad
     }
 
+    // pub fn gradient(&self, f: &Array<T, Ix2>, dx: T) -> Array<T, Ix2> {
+    //     // println!("grad version: 17:16");
+    //     let grad = Array::from_shape_fn(f.raw_dim(), |(c, i)| {
+    //         let width:usize = 1;
+    //         let width_f64 = width as f64;
+    //         let d = if i as isize - width as isize * 2 <= 0 {
+    //             (f[(c, i + width)] - f[(c, i)]) * 2.0 // Left value --> where from?
+    //         } else if i + width*2 >= f.shape()[1] - 1 {
+    //             (f[(c, i)] - f[(c, i - width)]) * 2.0
+    //         } else {
+    //             f[(c,i-2*width)] - f[(c, i - width)] * 8.0 + f[(c, i + width)] * 8.0 - f[(c, i + 2*width)] 
+    //             // (f[(c, i + 1)] - f[(c, i)]) * 2.0
+    //         };
+    //         d / (dx * 12.0 * width_f64)
+    //     });
+    //     grad
+    // }
+
+
+    // pub fn gradient_3d(&self, f: &Array<T, Ix3>, dx: T) -> Array<T, Ix3> {
+    //     // println!("grad version: 17:16");
+    //     let grad = Array::from_shape_fn(f.raw_dim(), |(c1, c2, i)| {
+    //         let width:usize = 2;
+    //         let width_f64 = width as f64;
+    //         let d = if i as isize - width as isize <= 0 {
+    //             (f[(c1, c2, i + width)] - f[(c1, c2, i)]) * 2.0 // Left value --> where from?
+    //         } else if i + width >= f.shape()[2] - 1 {
+    //             (f[(c1, c2, i)] - f[(c1, c2, i - width)]) * 2.0
+    //         } else {
+    //             f[(c1, c2,i-2*width)] - f[(c1, c2, i - width)] * 8.0 + f[(c1, c2, i + width)] * 8.0 - f[(c1, c2, i + 2*width)]
+    //         };
+    //         d / (dx * 1z2.0 * width_f64)
+    //     });
+    //     grad
+    // }
+
+    // pub fn gradient_3d_new(&self, f: &Array<T, Ix3>, dx: T) -> Array<T, Ix3> {
+    //     // println!("grad version: 17:16");
+    //     let mut grad = Array::zeros(f.raw_dim()).into_dimensionality().unwrap(); 
+    //     grad = f.outer_iter().map(|fi| self.gradient(fi, dx)).collect();
+    //     // for (g, fi) in grad.outer_iter_mut().zip(f.outer_iter()){
+    //     //     g = self.gradient(fi, dx);
+    //     // } 
+    //     grad
+    // }
+
     pub fn gradient_3d(&self, f: &Array<T, Ix3>, dx: T) -> Array<T, Ix3> {
         // println!("grad version: 17:16");
         let grad = Array::from_shape_fn(f.raw_dim(), |(c1, c2, i)| {
-            let d = if i == 0 {
-                // (f[(c1, c2, 2)] - f[(c1, c2, 0)]) * 0.0 // Left value --> where from?
-                (f[(c1, c2, 1)] - f[(c1, c2, 0)]) * 2.0 // Left value --> where from?
-            } else if i == f.shape()[2] - 1 {
-                // (f[(c1, c2, f.shape()[2] - 1)] - f[(c1, c2, f.shape()[2] - 3)]) * 0.0
-
-                (f[(c1, c2, f.shape()[2] - 1)] - f[(c1, c2, f.shape()[2] - 2)]) * 2.0
+            let width:usize = 6;
+            let width_f64 = width as f64;
+            let d = if i as isize - width as isize <= 0 {
+                (f[(c1, c2, i + width)] - f[(c1, c2, i)]) * 0.0 // Left value --> where from?
+            } else if i + width >= f.shape()[2] - 1 {
+                (f[(c1, c2, i)] - f[(c1, c2, i - width)]) * 0.0
             } else {
-                f[(c1, c2, i + 1)] - f[(c1, c2, i - 1)]
-                // (f[(c1, c2, i + 1)] - f[(c1, c2, i)]) * 2.0
+                f[(c1, c2, i + width)] - f[(c1, c2, i - width)]
             };
-            d / (dx * 2.0)
+            d / (dx * 2.0 * width_f64)
         });
         grad
     }
@@ -150,14 +193,14 @@ where
     pub fn laplace(&self, f: &Array<T, Ix2>, dx: T) -> Array<T, Ix2> {
         // println!("lapl-version: 14:00");
         let lapl = Array::from_shape_fn(f.raw_dim(), |(c, i)| {
-            let width = 4;
+            let width:usize = 6;
             let width_f64 = width as f64;
-            let d = if i - width <= 0 {
+            let d = if i as isize - width as isize <= 0 {
                 // (f[(c, 2)] - f[(c, 0)]) * 0.0 // Left value --> where from?
-                f[(c, i + width * 2)] - f[(c, i + width)] * 2.0 + f[(c, i)] // Left value --> where from?
+                (f[(c, i + width * 2)] - f[(c, i + width)] * 2.0 + f[(c, i)])*0.0 // Left value --> where from?
             } else if i + width >= f.shape()[1] - 1 {
                 // (f[(c, f.shape()[1] - 1)] - f[(c, f.shape()[1] - 3)]) * 0.0
-                f[(c, i)] - f[(c, i - width)] * 2.0 + f[(c, i - width * 2)]
+                (f[(c, i)] - f[(c, i - width)] * 2.0 + f[(c, i - width * 2)])*0.0
             } else {
                 (f[(c, i + width)] - f[(c, i)] * 2.0 + f[(c, i - width)])
                 // f[(c, i + 2)] - f[(c, i + 1)] * 2.0 + f[(c, i)]
@@ -211,7 +254,7 @@ where
     }
 
     fn weighted_densities(&self, density: &Array<T, Ix2>) -> Vec<Array<T, Ix2>> {
-        // println!(" Called fn weighted_densities in GradConvolver");
+        println!(" Called fn weighted_densities in GradConvolver");
         let dx = self.grid[1] - self.grid[0];
 
         let gradient = self.gradient(density, dx);
@@ -234,6 +277,7 @@ where
         // self.weight_functions as Vec<WeightFunctionInfo<HyperDual64>>;
 
         //loop over contributions
+        let mut j = 0;
         for (wf, wc) in self
             .weight_functions
             .iter()
@@ -323,7 +367,14 @@ where
                 }
                 k += 1;
             }
+
+            let filename3 = j.to_string().to_owned();
+            write_npy(filename3 + "_wd.npy", &weighted_densities).unwrap();
+            j = j + 1;
+
             weighted_densities_vec.push(weighted_densities);
+
+            
         }
 
         weighted_densities_vec
@@ -332,7 +383,7 @@ where
     fn functional_derivative(
         &self,
         partial_derivatives: &[Array<T, Ix2>],
-        second_partial_derivatives: &[Array<T, Ix3>],
+        second_partial_derivatives: &[Array<T, Ix3>], //only for 2nd variant of functional derivative
         weighted_densities: &[Array<T, Ix2>],
     ) -> Array<T, Ix2> {
         // println!(" Called fn functional_derivative in GradConvolver");
@@ -405,6 +456,8 @@ where
 
             let filename2 = i.to_string().to_owned();
             write_npy(filename2 + "_firstpd.npy", pd).unwrap();
+            let filename3 = i.to_string().to_owned();
+            write_npy(filename3 + "_wd.npy", pd).unwrap();
             // println!("write npy");
 
             // Initilaizing row index for non-local functional derivative
@@ -503,7 +556,7 @@ where
     }
 
     /*
-    //  This is v2 of the functional derivative, where gradients are calculated for individual terms
+    //  This is v2 of the functional derivative, where gradisents are calculated for individual terms
     fn functional_derivative(
         &self,
         partial_derivatives: &[Array<T, Ix2>],

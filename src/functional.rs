@@ -303,7 +303,7 @@ impl<T: HelmholtzEnergyFunctional> DFT<T> {
         D: Dimension,
         D::Larger: Dimension<Smaller = D>,
     {
-        let weighted_densities = convolver_wd.weighted_densities(density);
+        let weighted_densities = convolver.weighted_densities(density);
         let contributions = self.functional.contributions();
         let mut partial_derivatives = Vec::with_capacity(contributions.len());
 
@@ -345,7 +345,7 @@ impl<T: HelmholtzEnergyFunctional> DFT<T> {
             convolver.functional_derivative(
                 &partial_derivatives,
                 &second_partial_derivatives,
-                &convolver_wd.weighted_densities(density),
+                &convolver.weighted_densities(density),
             ),
         ))
     }
