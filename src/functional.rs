@@ -330,7 +330,6 @@ impl<T: HelmholtzEnergyFunctional> DFT<T> {
             )?;
             second_partial_derivatives.push(spd);
 
-
             // c.first_partial_derivatives(
             //     temperature,
             //     wd.into_shape((nwd, ngrid)).unwrap(),

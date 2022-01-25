@@ -197,7 +197,13 @@ impl<U: EosUnit, F: HelmholtzEnergyFunctional + FluidParameters> PoreSpecificati
         let convolver_wd = ConvolverFFT::plan(&grid, &weight_functions, Some(1));
 
         Ok(PoreProfile {
-            profile: DFTProfile::new(grid, convolver, convolver_wd, bulk, Some(external_potential))?,
+            profile: DFTProfile::new(
+                grid,
+                convolver,
+                convolver_wd,
+                bulk,
+                Some(external_potential),
+            )?,
             grand_potential: None,
             interfacial_tension: None,
         })
@@ -254,7 +260,13 @@ impl<U: EosUnit, F: HelmholtzEnergyFunctional, P: FluidParameters> PoreSpecifica
         let convolver_wd = ConvolverFFT::plan(&grid, &weight_functions, Some(1));
 
         Ok(PoreProfile {
-            profile: DFTProfile::new(grid, convolver, convolver_wd, bulk, Some(external_potential))?,
+            profile: DFTProfile::new(
+                grid,
+                convolver,
+                convolver_wd,
+                bulk,
+                Some(external_potential),
+            )?,
             grand_potential: None,
             interfacial_tension: None,
         })

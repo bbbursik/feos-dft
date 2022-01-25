@@ -112,7 +112,7 @@ where
     pub fn gradient(&self, f: &Array<T, Ix2>, dx: T) -> Array<T, Ix2> {
         // println!("grad version: 17:16");
         let grad = Array::from_shape_fn(f.raw_dim(), |(c, i)| {
-            let width:usize = 6;
+            let width: usize = 6;
             let width_f64 = width as f64;
             let d = if i as isize - width as isize <= 0 {
                 (f[(c, i + width)] - f[(c, i)]) * 0.0 // Left value --> where from?
@@ -137,14 +137,13 @@ where
     //         } else if i + width*2 >= f.shape()[1] - 1 {
     //             (f[(c, i)] - f[(c, i - width)]) * 2.0
     //         } else {
-    //             f[(c,i-2*width)] - f[(c, i - width)] * 8.0 + f[(c, i + width)] * 8.0 - f[(c, i + 2*width)] 
+    //             f[(c,i-2*width)] - f[(c, i - width)] * 8.0 + f[(c, i + width)] * 8.0 - f[(c, i + 2*width)]
     //             // (f[(c, i + 1)] - f[(c, i)]) * 2.0
     //         };
     //         d / (dx * 12.0 * width_f64)
     //     });
     //     grad
     // }
-
 
     // pub fn gradient_3d(&self, f: &Array<T, Ix3>, dx: T) -> Array<T, Ix3> {
     //     // println!("grad version: 17:16");
@@ -165,18 +164,18 @@ where
 
     // pub fn gradient_3d_new(&self, f: &Array<T, Ix3>, dx: T) -> Array<T, Ix3> {
     //     // println!("grad version: 17:16");
-    //     let mut grad = Array::zeros(f.raw_dim()).into_dimensionality().unwrap(); 
+    //     let mut grad = Array::zeros(f.raw_dim()).into_dimensionality().unwrap();
     //     grad = f.outer_iter().map(|fi| self.gradient(fi, dx)).collect();
     //     // for (g, fi) in grad.outer_iter_mut().zip(f.outer_iter()){
     //     //     g = self.gradient(fi, dx);
-    //     // } 
+    //     // }
     //     grad
     // }
 
     pub fn gradient_3d(&self, f: &Array<T, Ix3>, dx: T) -> Array<T, Ix3> {
         // println!("grad version: 17:16");
         let grad = Array::from_shape_fn(f.raw_dim(), |(c1, c2, i)| {
-            let width:usize = 6;
+            let width: usize = 6;
             let width_f64 = width as f64;
             let d = if i as isize - width as isize <= 0 {
                 (f[(c1, c2, i + width)] - f[(c1, c2, i)]) * 0.0 // Left value --> where from?
@@ -193,14 +192,15 @@ where
     pub fn laplace(&self, f: &Array<T, Ix2>, dx: T) -> Array<T, Ix2> {
         // println!("lapl-version: 14:00");
         let lapl = Array::from_shape_fn(f.raw_dim(), |(c, i)| {
-            let width:usize = 6;
+            let width: usize = 6;
             let width_f64 = width as f64;
             let d = if i as isize - width as isize <= 0 {
                 // (f[(c, 2)] - f[(c, 0)]) * 0.0 // Left value --> where from?
-                (f[(c, i + width * 2)] - f[(c, i + width)] * 2.0 + f[(c, i)])*0.0 // Left value --> where from?
+                (f[(c, i + width * 2)] - f[(c, i + width)] * 2.0 + f[(c, i)]) * 0.0
+            // Left value --> where from?
             } else if i + width >= f.shape()[1] - 1 {
                 // (f[(c, f.shape()[1] - 1)] - f[(c, f.shape()[1] - 3)]) * 0.0
-                (f[(c, i)] - f[(c, i - width)] * 2.0 + f[(c, i - width * 2)])*0.0
+                (f[(c, i)] - f[(c, i - width)] * 2.0 + f[(c, i - width * 2)]) * 0.0
             } else {
                 (f[(c, i + width)] - f[(c, i)] * 2.0 + f[(c, i - width)])
                 // f[(c, i + 2)] - f[(c, i + 1)] * 2.0 + f[(c, i)]
@@ -259,6 +259,10 @@ where
 
         let gradient = self.gradient(density, dx);
         let laplace = self.laplace(density, dx);
+
+        write_npy("grad_rho.npy", &gradient).unwrap();
+        write_npy("lapl_rho.npy", &laplace).unwrap();
+
         // let temperature =
         //     HyperDual64::from(self.temperature.to_reduced(U::reference_temperature())?);
 
@@ -373,8 +377,6 @@ where
             j = j + 1;
 
             weighted_densities_vec.push(weighted_densities);
-
-            
         }
 
         weighted_densities_vec
@@ -456,8 +458,8 @@ where
 
             let filename2 = i.to_string().to_owned();
             write_npy(filename2 + "_firstpd.npy", pd).unwrap();
-            let filename3 = i.to_string().to_owned();
-            write_npy(filename3 + "_wd.npy", pd).unwrap();
+            // let filename3 = i.to_string().to_owned();
+            // write_npy(filename3 + "_wd.npy", pd).unwrap();
             // println!("write npy");
 
             // Initilaizing row index for non-local functional derivative
@@ -1090,6 +1092,7 @@ where
     }
 
     fn weighted_densities(&self, density: &Array<T, D::Larger>) -> Vec<Array<T, D::Larger>> {
+        println!("called fn weighted densities in FFT convolver");
         // Applying FFT to each row of the matrix `rho` saving the result in `rho_k`
         let rho_k = self.forward_transform_comps(density.view(), None);
 
