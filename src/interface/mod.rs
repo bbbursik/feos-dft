@@ -7,6 +7,7 @@ use crate::solver::DFTSolver;
 use feos_core::{Contributions, EosError, EosResult, EosUnit, PhaseEquilibrium};
 use ndarray::{s, Array, Array1, Array2, Axis as Axis_nd, Ix1};
 use num_dual::{HyperDual64, HyperDualVec, HyperDualVec64};
+use ndarray_npy::write_npy;
 use quantity::{QuantityArray1, QuantityArray2, QuantityScalar};
 
 mod surface_tension_diagram;
@@ -102,6 +103,19 @@ impl<U: EosUnit, F: HelmholtzEnergyFunctional> PlanarInterface<U, F> {
                 .iter()
                 .map(|w| w.weight_constants(k0, 1))
                 .collect();
+
+            for (i, wc) in weight_constants.iter().enumerate(){
+                let filename0 = i.to_string().to_owned();
+                let filename1 = i.to_string().to_owned();
+                let filename2 = i.to_string().to_owned();
+                let w0 = wc.mapv(|w| w.re);
+                let w1 = wc.mapv(|w| -w.eps1[0]);
+                let w2 = wc.mapv(|w| -0.5 * w.eps1eps2[(0, 0)]);
+                write_npy( filename0 + "_wc0.npy", &w0).unwrap();
+                write_npy( filename1 + "_wc1.npy", &w1).unwrap();
+                write_npy( filename2 + "_wc2.npy", &w2).unwrap();
+            }
+            
             let convolver = GradConvolver::new(
                 (Axis::new_cartesian(n_grid, l_grid, None)?).grid,
                 weight_functions,

@@ -835,7 +835,19 @@ where
     D::Larger: Dimension<Smaller = D>,
     F: HelmholtzEnergyFunctional,
 {
+    
+    // pub fn weight_constants(&self) -> Vec<Array<HyperDual64, D::Larger>> {
+    //     self
+    //         .convolver
+    //         .weight_constants
+    // }
     pub fn weighted_densities(&self) -> EosResult<Vec<Array<f64, D::Larger>>> {
+        Ok(self
+            .convolver
+            .weighted_densities(&self.density.to_reduced(U::reference_density())?))
+    }
+
+    pub fn weighted_densities_FFT(&self) -> EosResult<Vec<Array<f64, D::Larger>>> {
         Ok(self
             .convolver_wd
             .weighted_densities(&self.density.to_reduced(U::reference_density())?))

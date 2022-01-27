@@ -112,7 +112,7 @@ where
     pub fn gradient(&self, f: &Array<T, Ix2>, dx: T) -> Array<T, Ix2> {
         // println!("grad version: 17:16");
         let grad = Array::from_shape_fn(f.raw_dim(), |(c, i)| {
-            let width: usize = 6;
+            let width: usize = 20;
             let width_f64 = width as f64;
             let d = if i as isize - width as isize <= 0 {
                 (f[(c, i + width)] - f[(c, i)]) * 0.0 // Left value --> where from?
@@ -175,7 +175,7 @@ where
     pub fn gradient_3d(&self, f: &Array<T, Ix3>, dx: T) -> Array<T, Ix3> {
         // println!("grad version: 17:16");
         let grad = Array::from_shape_fn(f.raw_dim(), |(c1, c2, i)| {
-            let width: usize = 6;
+            let width: usize = 20;
             let width_f64 = width as f64;
             let d = if i as isize - width as isize <= 0 {
                 (f[(c1, c2, i + width)] - f[(c1, c2, i)]) * 0.0 // Left value --> where from?
@@ -192,7 +192,7 @@ where
     pub fn laplace(&self, f: &Array<T, Ix2>, dx: T) -> Array<T, Ix2> {
         // println!("lapl-version: 14:00");
         let lapl = Array::from_shape_fn(f.raw_dim(), |(c, i)| {
-            let width: usize = 6;
+            let width: usize = 20;
             let width_f64 = width as f64;
             let d = if i as isize - width as isize <= 0 {
                 // (f[(c, 2)] - f[(c, 0)]) * 0.0 // Left value --> where from?
@@ -315,7 +315,7 @@ where
             }
 
             // Calculating weighted densities {scalar, component}
-            for wf_i in &wf.scalar_component_weighted_densities {
+            for _wf in &wf.scalar_component_weighted_densities {
                 for (i, ((rho, lapl), mut res)) in density
                     .outer_iter()
                     .zip(laplace.outer_iter())
@@ -336,7 +336,7 @@ where
 
             // Calculating weighted densities {vector, component}
             // !! WORKS FOR 1D ONLY !!
-            for wf_i in &wf.vector_component_weighted_densities {
+            for _wf in &wf.vector_component_weighted_densities {
                 for (i, (grad, mut res)) in gradient
                     .outer_iter()
                     .zip(
@@ -352,7 +352,7 @@ where
             }
 
             // Calculating weighted densities {scalar, FMT}
-            for wf_i in &wf.scalar_fmt_weighted_densities {
+            for _wf in &wf.scalar_fmt_weighted_densities {
                 for (i, (rho, lapl)) in density.outer_iter().zip(laplace.outer_iter()).enumerate() {
                     weighted_densities.index_axis_mut(Axis_nd(0), k).add_assign(
                         &(&rho * w0.slice(s![k, ..])[i] + &lapl * w2.slice(s![k, ..])[i]),
@@ -363,7 +363,7 @@ where
 
             // Calculating weighted densities {vector, FMT}
             // !! WORKS FOR 1D ONLY I think!!
-            for wf_i in &wf.vector_fmt_weighted_densities {
+            for _wf in &wf.vector_fmt_weighted_densities {
                 for (i, grad) in gradient.outer_iter().enumerate() {
                     weighted_densities
                         .index_axis_mut(Axis_nd(0), k)
@@ -472,7 +472,7 @@ where
             }
 
             // Calculating functional derivative {scalar, component}
-            for wf_i in &wf.scalar_component_weighted_densities {
+            for _wf in &wf.scalar_component_weighted_densities {
                 for (i, (((fpd, lapl), mut res0), mut res2)) in pd
                     .slice_axis(Axis_nd(0), Slice::from(k..k + segments))
                     .outer_iter()
@@ -496,7 +496,7 @@ where
             }
 
             // Calculating functional derivative {vector, component}
-            for wf_i in &wf.vector_component_weighted_densities {
+            for _wf in &wf.vector_component_weighted_densities {
                 for (i, (grad, mut res1)) in grad_first_partial_derivative
                     .slice_axis(Axis_nd(0), Slice::from(k..k + segments))
                     .outer_iter()
@@ -509,7 +509,7 @@ where
             }
 
             // Calculating functional derivative {scalar, FMT}
-            for wf_i in &wf.scalar_fmt_weighted_densities {
+            for _wf in &wf.scalar_fmt_weighted_densities {
                 for (i, (mut res0, mut res2)) in functional_derivative_0
                     .outer_iter_mut()
                     .zip(functional_derivative_2.outer_iter_mut())
@@ -532,7 +532,7 @@ where
 
             // Calculating functional derivative {vector, FMT}
             // !! WORKS FOR 1D ONLY!!
-            for wf_i in &wf.vector_fmt_weighted_densities {
+            for _wf in &wf.vector_fmt_weighted_densities {
                 for (i, mut res1) in functional_derivative_1.outer_iter_mut().enumerate() {
                     res1.add_assign(
                         &(&grad_first_partial_derivative.index_axis(Axis_nd(0), k)
@@ -678,7 +678,7 @@ where
             }
 
             // Calculating functional derivative {scalar, component}
-            for wf_i in &wf.scalar_component_weighted_densities {
+            for _wf in &wf.scalar_component_weighted_densities {
                 for (
                     i,
                     ((fpd, spds), gradients_spd), // mut res0), //, mut res2), //((((((fpd, spds), gradients_spd), grad_wd), lapl_wd), mut res0), mut res2),
@@ -725,7 +725,7 @@ where
             }
 
             // Calculating functional derivative {vector, component}
-            for wf_i in &wf.vector_component_weighted_densities {
+            for _wf in &wf.vector_component_weighted_densities {
                 for (i, (spds, mut res1)) in secparder
                     .slice_axis(Axis_nd(0), Slice::from(k..k + segments))
                     .outer_iter()
@@ -745,7 +745,7 @@ where
             }
 
             // Calculating functional derivative {scalar, FMT}
-            for wf_i in &wf.scalar_fmt_weighted_densities {
+            for _wf in &wf.scalar_fmt_weighted_densities {
                 for (i, (mut res0, mut res2)) in functional_derivative_0
                     .outer_iter_mut()
                     .zip(functional_derivative_2.outer_iter_mut())
@@ -780,7 +780,7 @@ where
 
             // Calculating functional derivative {vector, FMT}
             // !! WORKS FOR 1D ONLY!!
-            for wf_i in &wf.vector_fmt_weighted_densities {
+            for _wf in &wf.vector_fmt_weighted_densities {
                 for (i, mut res1) in functional_derivative_1.outer_iter_mut().enumerate() {
                     for (spd, grad_wd) in secparder
                         .index_axis(Axis_nd(0), k)
@@ -930,29 +930,29 @@ where
             // Pre-allocation of empty `Vec`
             let mut scal_comp = Vec::with_capacity(wf.scalar_component_weighted_densities.len());
             // Filling array with scalar component-wise weight functions
-            for wf_i in &wf.scalar_component_weighted_densities {
-                scal_comp.push(wf_i.fft_scalar_weight_functions(&k_abs, &lanczos_sigma));
+            for _wf in &wf.scalar_component_weighted_densities {
+                scal_comp.push(_wf.fft_scalar_weight_functions(&k_abs, &lanczos_sigma));
             }
 
             // Pre-allocation of empty `Vec`
             let mut vec_comp = Vec::with_capacity(wf.vector_component_weighted_densities.len());
             // Filling array with vector-valued component-wise weight functions
-            for wf_i in &wf.vector_component_weighted_densities {
-                vec_comp.push(wf_i.fft_vector_weight_functions(&k_abs, &k, &lanczos_sigma));
+            for _wf in &wf.vector_component_weighted_densities {
+                vec_comp.push(_wf.fft_vector_weight_functions(&k_abs, &k, &lanczos_sigma));
             }
 
             // Pre-allocation of empty `Vec`
             let mut scal_fmt = Vec::with_capacity(wf.scalar_fmt_weighted_densities.len());
             // Filling array with scalar FMT weight functions
-            for wf_i in &wf.scalar_fmt_weighted_densities {
-                scal_fmt.push(wf_i.fft_scalar_weight_functions(&k_abs, &lanczos_sigma));
+            for _wf in &wf.scalar_fmt_weighted_densities {
+                scal_fmt.push(_wf.fft_scalar_weight_functions(&k_abs, &lanczos_sigma));
             }
 
             // Pre-allocation of empty `Vec`
             let mut vec_fmt = Vec::with_capacity(wf.vector_fmt_weighted_densities.len());
             // Filling array with vector-valued FMT weight functions
-            for wf_i in &wf.vector_fmt_weighted_densities {
-                vec_fmt.push(wf_i.fft_vector_weight_functions(&k_abs, &k, &lanczos_sigma));
+            for _wf in &wf.vector_fmt_weighted_densities {
+                vec_fmt.push(_wf.fft_vector_weight_functions(&k_abs, &k, &lanczos_sigma));
             }
 
             // Initializing `FFTWeightFunctions` structure
@@ -1119,9 +1119,9 @@ where
             }
 
             // Calculating weighted densities {scalar, component}
-            for wf_i in &wf.scalar_component_weighted_densities {
+            for _wf in &wf.scalar_component_weighted_densities {
                 self.back_transform_comps(
-                    &rho_k * wf_i,
+                    &rho_k * _wf,
                     weighted_densities.slice_axis_mut(Axis(0), Slice::from(k..k + wf.segments)),
                     None,
                 );
@@ -1129,10 +1129,10 @@ where
             }
 
             // Calculating weighted densities {vector, component}
-            for wf_i in &wf.vector_component_weighted_densities {
-                for (i, wf_i) in wf_i.outer_iter().enumerate() {
+            for _wf in &wf.vector_component_weighted_densities {
+                for (i, _wf) in _wf.outer_iter().enumerate() {
                     self.back_transform_comps(
-                        &rho_k * &wf_i,
+                        &rho_k * &_wf,
                         weighted_densities.slice_axis_mut(Axis(0), Slice::from(k..k + wf.segments)),
                         Some(i),
                     );
@@ -1141,9 +1141,9 @@ where
             }
 
             // Calculating weighted densities {scalar, FMT}
-            for wf_i in &wf.scalar_fmt_weighted_densities {
+            for _wf in &wf.scalar_fmt_weighted_densities {
                 self.back_transform(
-                    (&rho_k * wf_i).sum_axis(Axis(0)).view_mut(),
+                    (&rho_k * _wf).sum_axis(Axis(0)).view_mut(),
                     weighted_densities.index_axis_mut(Axis(0), k),
                     None,
                 );
@@ -1151,10 +1151,10 @@ where
             }
 
             // Calculating weighted densities {vector, FMT}
-            for wf_i in &wf.vector_fmt_weighted_densities {
-                for (i, wf_i) in wf_i.outer_iter().enumerate() {
+            for _wf in &wf.vector_fmt_weighted_densities {
+                for (i, _wf) in _wf.outer_iter().enumerate() {
                     self.back_transform(
-                        (&rho_k * &wf_i).sum_axis(Axis(0)).view_mut(),
+                        (&rho_k * &_wf).sum_axis(Axis(0)).view_mut(),
                         weighted_densities.index_axis_mut(Axis(0), k),
                         Some(i),
                     );
@@ -1205,39 +1205,39 @@ where
             }
 
             // Convolution of functional derivatives {scalar, component}
-            for wf_i in &wf.scalar_component_weighted_densities {
+            for _wf in &wf.scalar_component_weighted_densities {
                 let pd_k = self.forward_transform_comps(
                     pd.slice_axis(Axis(0), Slice::from(k..k + wf.segments)),
                     None,
                 );
-                functional_deriv_k.add_assign(&(&pd_k * wf_i));
+                functional_deriv_k.add_assign(&(&pd_k * _wf));
                 k += wf.segments;
             }
 
             // Convolution of functional derivatives {vector, component}
-            for wf_i in &wf.vector_component_weighted_densities {
-                for (i, wf_i) in wf_i.outer_iter().enumerate() {
+            for _wf in &wf.vector_component_weighted_densities {
+                for (i, _wf) in _wf.outer_iter().enumerate() {
                     let pd_k = self.forward_transform_comps(
                         pd.slice_axis(Axis(0), Slice::from(k..k + wf.segments)),
                         Some(i),
                     );
-                    functional_deriv_k.add_assign(&(pd_k * &wf_i));
+                    functional_deriv_k.add_assign(&(pd_k * &_wf));
                     k += wf.segments;
                 }
             }
 
             // Convolution of functional derivatives {scalar, FMT}
-            for wf_i in &wf.scalar_fmt_weighted_densities {
+            for _wf in &wf.scalar_fmt_weighted_densities {
                 let pd_k = self.forward_transform(pd.index_axis(Axis(0), k), None);
-                functional_deriv_k.add_assign(&(wf_i * &pd_k));
+                functional_deriv_k.add_assign(&(_wf * &pd_k));
                 k += 1;
             }
 
             // Convolution of functional derivatives {vector, FMT}
-            for wf_i in &wf.vector_fmt_weighted_densities {
-                for (i, wf_i) in wf_i.outer_iter().enumerate() {
+            for _wf in &wf.vector_fmt_weighted_densities {
+                for (i, _wf) in _wf.outer_iter().enumerate() {
                     let pd_k = self.forward_transform(pd.index_axis(Axis(0), k), Some(i));
-                    functional_deriv_k.add_assign(&(&wf_i * &pd_k));
+                    functional_deriv_k.add_assign(&(&_wf * &pd_k));
                     k += 1;
                 }
             }

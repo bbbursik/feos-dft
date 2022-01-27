@@ -100,6 +100,16 @@ macro_rules! impl_profile {
             }
 
             #[getter]
+            fn get_weighted_densities_FFT<'py>(
+                &self,
+                py: Python<'py>,
+            ) -> PyResult<Vec<&'py $arr2<f64>>> {
+                // self.0.profile.local_weighted_densities();
+                let n = self.0.profile.weighted_densities_FFT()?;
+                Ok(n.into_iter().map(|n| n.view().to_pyarray(py)).collect())
+            }
+
+            #[getter]
             fn get_functional_derivative<'py>(
                 &self,
                 py: Python<'py>,
