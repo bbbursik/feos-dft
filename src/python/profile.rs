@@ -106,6 +106,7 @@ macro_rules! impl_profile {
                 Ok(self.0.profile.functional_derivative()?.view().to_pyarray(py))
             }
 
+
             /// Calculate the entropy density of the inhomogeneous system.
             ///
             /// Parameters
@@ -125,6 +126,18 @@ macro_rules! impl_profile {
             ) -> PyResult<$si_arr> {
                 Ok($si_arr::from(
                     self.0.profile.entropy_density(contributions.0)?,
+                ))
+            }
+
+
+            // #[args(contributions = "PyContributions::Total()")]
+            #[pyo3(text_signature = "($self)")]
+            fn viscosity_profile(
+                &mut self,
+                // contributions: PyContributions,
+            ) -> PyResult<$si_arr> {
+                Ok($si_arr::from(
+                    self.0.profile.viscosity_profile()?,
                 ))
             }
 

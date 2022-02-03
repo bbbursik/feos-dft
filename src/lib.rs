@@ -5,6 +5,7 @@
 
 pub mod adsorption;
 mod convolver;
+mod entropy_scaling;
 mod functional;
 mod functional_contribution;
 pub mod fundamental_measure_theory;
