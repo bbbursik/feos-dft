@@ -1,11 +1,11 @@
-use crate::fundamental_measure_theory::{FMTContribution, FMTProperties};
+use crate::fundamental_measure_theory::{FMTContribution, FMTProperties, FMTFunctional};
 use crate::profile::DFTProfile;
 use crate::{
     ConvolverFFT, FunctionalContribution, HelmholtzEnergyFunctional, WeightFunction,
     WeightFunctionInfo, WeightFunctionShape,
 };
 use feos_core::{Contributions, EosResult, EosUnit};
-use ndarray::{Array, Dimension};
+use ndarray::{Array, Dimension, Axis, RemoveAxis};
 use num_dual::Dual64;
 use quantity::{QuantityArray, QuantityScalar};
 
@@ -14,6 +14,17 @@ pub trait EntropyScalingFunctionalContribution: FunctionalContribution {
 }
 
 impl<P: FMTProperties> EntropyScalingFunctionalContribution for FMTContribution<P> {
+    fn weight_functions_entropy(&self, temperature: f64) -> WeightFunctionInfo<f64> {
+        let r = self.properties.hs_diameter(temperature) * 0.5;
+        WeightFunctionInfo::new(self.properties.component_index(), false).add(
+            WeightFunction::new_scaled(r, WeightFunctionShape::Theta),
+            true,
+        )
+    }
+}
+
+
+impl EntropyScalingFunctionalContribution for FMTFunctional {
     fn weight_functions_entropy(&self, temperature: f64) -> WeightFunctionInfo<f64> {
         let r = self.properties.hs_diameter(temperature) * 0.5;
         WeightFunctionInfo::new(self.properties.component_index(), false).add(
@@ -72,7 +83,7 @@ where
     U: EosUnit,
     D: Dimension,
     D::Larger: Dimension<Smaller = D>,
-    F: HelmholtzEnergyFunctional,
+    F: HelmholtzEnergyFunctional + EntropyScalingFunctional<U>,
 {
     pub fn viscosity_profile(&self) -> EosResult<QuantityArray<U, D>> {
         let temperature_red = self.temperature.to_reduced(U::reference_temperature())?;
@@ -88,30 +99,84 @@ where
 
         let convolver_dual = ConvolverFFT::plan(&self.grid, &weight_functions_dual, None);
 
-        // Weighted densities
-        let weighted_densities_entropy = self.convolver_entropy.weighted_densities(&density_red);
+        // Initialize entropy convolver
+        let functional_contributions_entropy = self.dft.functional.entropy_scaling_contributions();
+        let weight_functions_entropy: Vec<WeightFunctionInfo<f64>> =
+            functional_contributions_entropy
+                .iter()
+                .map(|c| c.weight_functions_entropy(temperature_red))
+                .collect();
+        let convolver_entropy = ConvolverFFT::plan(
+            &self.grid,
+            &weight_functions_entropy,
+            None,
+        );
 
-        let s_res = self
+
+        // Code (originally placed in entropy_density_contributions)
+
+        // Weighted densities
+        let weighted_densities_entropy = convolver_entropy.weighted_densities(&density_red);
+
+
+            // Molar entropy calculation for each contribution
+        let entropy_molar_contributions = self
             .dft
-            // .functional
             .entropy_density_contributions(
-                temperature,
-                &density,
-                &self.convolver,
+                temperature_red,
+                &density_red,
+                &convolver_dual,
                 Contributions::Residual,
             )?
-            .to_reduced(U::reference_moles().powi(-1))?
-            .mapv(|v| f64::min(v, 0.0));
+            .iter()
+            .zip(weighted_densities_entropy.iter())
+            .map(|(v, w)| {
+                (v * U::reference_volume().powi(-1)
+                    / (&w.index_axis(Axis(0), 0) * U::reference_density()))
+                    // / (&w.slice(s![0, ..]) * U::reference_density()))
+                .to_reduced(U::reference_moles().powi(-1))
+                .unwrap()
+            })
+            .collect::<Vec<_>>();
 
-        // let visc_ref = self
+
+        let mut dim = vec![];
+        self.density.shape().iter().skip(0).for_each(|&d| dim.push(d));
+        let mut entropy_molar = Array::zeros(dim);
+        // let mut entropy_molar = Array::zeros(self.density.raw_dim().remove_axis(Axis(0)));
+        for contr in entropy_molar_contributions.iter() {
+            entropy_molar += contr;
+        }
+
+        // 
+        // entropy_molar = entropy_molar * U::reference_moles().powi(-1);
+        let s_res = entropy_molar.mapv(|s| f64::min(s, 0.0));
+
+      
+
+        // let s_res = self
         //     .dft
-        //     .functional
-        //     .viscosity_reference::<Ix1>(density, self.temperature)
-        //     .unwrap();
+        //     // .functional
+        //     .entropy_density_contributions(
+        //         temperature,
+        //         &density,
+        //         &self.convolver,
+        //         Contributions::Residual,
+        //     )?
+        //     .to_reduced(U::reference_moles().powi(-1))?
+        //     .mapv(|v| f64::min(v, 0.0));
 
-        // let mut viscosity_shear = Array1::zeros(points_total);
+        let visc_ref = self
+            .dft
+            .functional
+            .viscosity_reference(&self.density, self.temperature)
+            .unwrap();
 
-        // viscosity_shear.slice_mut(s![2..-2]).assign(
+        // let mut viscosity_shear = Array::zeros(entropy_molar.raw_dim());
+        let mut viscosity_shear = self.dft.functional.viscosity_correlation(&s_res, &self.density).unwrap().mapv(f64::exp) * visc_ref.to_reduced(U::reference_viscosity())?;
+
+
+        // viscosity_shear.slice_mut(s![2..-2]).assign( 
         //     &(self
         //         .dft
         //         .functional
@@ -121,8 +186,8 @@ where
         //         * visc_ref.to_reduced(U::reference_viscosity())?),
         // );
 
-        viscosity_shear = viscosity_shear * U::reference_viscosity();
 
-        Ok(viscosity_shear)
+        Ok(viscosity_shear * U::reference_viscosity())
+    
     }
 }

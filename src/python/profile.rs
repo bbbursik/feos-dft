@@ -131,6 +131,17 @@ macro_rules! impl_profile {
 
 
             // #[args(contributions = "PyContributions::Total()")]
+
+
+
+            /// Calculate the viscosity profile of the inhomogeneous system from entropy scaling.
+            ///
+            /// Parameters
+            /// ----------
+            ///
+            /// Returns
+            /// -------
+            /// SIArray
             #[pyo3(text_signature = "($self)")]
             fn viscosity_profile(
                 &mut self,
