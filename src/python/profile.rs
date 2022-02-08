@@ -134,23 +134,7 @@ macro_rules! impl_profile {
 
 
 
-            /// Calculate the viscosity profile of the inhomogeneous system from entropy scaling.
-            ///
-            /// Parameters
-            /// ----------
-            ///
-            /// Returns
-            /// -------
-            /// SIArray
-            #[pyo3(text_signature = "($self)")]
-            fn viscosity_profile(
-                &mut self,
-                // contributions: PyContributions,
-            ) -> PyResult<$si_arr> {
-                Ok($si_arr::from(
-                    self.0.profile.viscosity_profile()?,
-                ))
-            }
+
 
             /// Calculate the entropy of the inhomogeneous system.
             ///
@@ -211,6 +195,20 @@ macro_rules! impl_1d_profile {
             PyArray2,
             [$([0, $ax]),+]
         );
+
+        #[pymethods]
+        impl $struct {
+
+            #[getter]
+            fn get_viscosity_profile(
+                &mut self,
+                // contributions: PyContributions,
+            ) -> PyResult<PySIArray1> {
+                Ok(PySIArray1::from(
+                    self.0.profile.viscosity_profile_1d()?,
+                ))
+            }
+        }
     };
 }
 
