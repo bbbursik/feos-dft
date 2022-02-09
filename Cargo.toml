@@ -20,6 +20,7 @@ quantity = { version = "0.4", features = ["linalg"] }
 feos-core = "0.1"
 num-dual = "0.4"
 ndarray = { version = "0.15", features = ["serde", "rayon"] }
+ndarray-npy = "*"
 ndarray-stats = "0.5"
 rustdct = "0.6"
 rustfft = "6.0"

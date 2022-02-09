@@ -8,6 +8,8 @@ use crate::{
 };
 use feos_core::{Contributions, EosResult, EosUnit};
 use ndarray::{Array, Array1, Array2, Axis, Dimension, Ix1, RemoveAxis};
+use ndarray_npy::write_npy;
+
 use num_dual::{Dual64, DualVec};
 use quantity::si::*;
 use quantity::{QuantityArray, QuantityScalar};
@@ -160,6 +162,16 @@ where
         let weighted_densities_entropy: Vec<Array2<f64>> =
             convolver_entropy.weighted_densities(&density_red);
 
+
+
+        for (i, wd_e) in weighted_densities_entropy.iter().enumerate(){
+            let filename0 = i.to_string().to_owned();
+            println!("{} in wd_entropy", i.to_string());
+           
+            write_npy(filename0 + "_wd_entropy.npy", wd_e).unwrap();
+
+        }
+        
         // Molar entropy calculation for each contribution
         let entropy_molar_contributions = self
             .dft
@@ -180,6 +192,28 @@ where
             })
             .collect::<Vec<_>>();
 
+
+
+        for (i, edc) in self
+            .dft
+            .entropy_density_contributions::<Ix1>(
+                temperature_red,
+                &density_red,
+                &convolver_dual,
+                Contributions::Residual,
+            )?.iter().enumerate(){
+                let filename0 = i.to_string().to_owned();
+                println!("{} in edc" , i.to_string());
+
+                write_npy(filename0 + "_edc.npy", edc).unwrap();
+            }
+
+        for (i, entr_contrib) in entropy_molar_contributions.iter().enumerate(){
+                let filename0 = i.to_string().to_owned();
+                write_npy(filename0 + "_entr_contrib.npy", entr_contrib).unwrap();
+                println!("{} in entr_contrib", i.to_string());
+    
+            }
         // let mut dim = vec![];
         // self.density.shape().iter().skip(0).for_each(|&d| dim.push(d));
         // let mut entropy_molar = Array1::zeros(dim);//.into_dimensionality().unwrap();
@@ -188,6 +222,7 @@ where
             entropy_molar += contr;
         }
 
+     
         //
         // entropy_molar = entropy_molar * SIUnit::reference_moles().powi(-1);
         let s_res = entropy_molar.mapv(|s| f64::min(s, 0.0));
@@ -210,6 +245,7 @@ where
             .viscosity_reference::<Ix1>(&self.density, self.temperature)
             .unwrap();
 
+        write_npy("visc_ref.npy", &visc_ref.to_reduced(SIUnit::reference_viscosity())?).unwrap();
         // let mut viscosity_shear = Array::zeros(entropy_molar.raw_dim());
         // let density = self.density;
         let mut viscosity_shear = self
