@@ -208,6 +208,15 @@ macro_rules! impl_1d_profile {
                     self.0.profile.viscosity_profile_1d()?,
                 ))
             }
+
+            #[getter]
+            fn get_weighted_densities_entropy<'py>(
+                &self,
+                py: Python<'py>,
+            ) -> PyResult<Vec<&'py PyArray2<f64>>> {
+                let n = self.0.profile.weighted_densities_entropy()?;
+                Ok(n.into_iter().map(|n| n.view().to_pyarray(py)).collect())
+            }
         }
     };
 }
