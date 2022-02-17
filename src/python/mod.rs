@@ -9,7 +9,8 @@ mod profile;
 mod solvation;
 mod solver;
 
-pub use adsorption::{PyExternalPotential, PyGeometry};
+// pub use adsorption::pore::PyDFTSpecification;
+pub use adsorption::{PyDFTSpecification, PyExternalPotential, PyGeometry};
 pub use fundamental_measure_theory::PyFMTVersion;
 use fundamental_measure_theory::*;
 pub use solver::PyDFTSolver;
@@ -19,7 +20,7 @@ pub fn feos_dft(py: Python<'_>, m: &PyModule) -> PyResult<()> {
     m.add_class::<PyExternalPotential>()?;
     m.add_class::<PyGeometry>()?;
     m.add_class::<PyDFTSolver>()?;
-
+    m.add_class::<PyDFTSpecification>()?;
     m.add_class::<PyFMTVersion>()?;
     m.add_class::<PyFMTFunctional>()?;
 

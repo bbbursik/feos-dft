@@ -4,6 +4,7 @@ use crate::functional::{HelmholtzEnergyFunctional, DFT};
 use crate::geometry::{Axis, AxisGeometry, Grid};
 use crate::profile::{DFTProfile, CUTOFF_RADIUS, MAX_POTENTIAL};
 use crate::solver::DFTSolver;
+use crate::{DFTSpecification, DFTSpecifications};
 use feos_core::{Contributions, EosResult, EosUnit, State};
 use ndarray::prelude::*;
 use ndarray::Axis as Axis_nd;
@@ -88,6 +89,7 @@ pub trait PoreSpecification<U, D: Dimension, F> {
         &self,
         bulk: &State<U, DFT<F>>,
         external_potential: Option<&Array<f64, D::Larger>>,
+        specification: Option<DFTSpecifications>,
     ) -> EosResult<PoreProfile<U, D, F>>;
 }
 
@@ -150,6 +152,14 @@ where
         self.interfacial_tension = None;
         self
     }
+
+    pub fn update_specification(&self, specification: DFTSpecifications) -> Self {
+        let mut profile = self.clone();
+        profile.profile.specification = Rc::new(specification);
+        profile.grand_potential = None;
+        profile.interfacial_tension = None;
+        profile
+    }
 }
 
 impl<U: EosUnit, F: HelmholtzEnergyFunctional + FluidParameters> PoreSpecification<U, Ix1, F>
@@ -159,6 +169,7 @@ impl<U: EosUnit, F: HelmholtzEnergyFunctional + FluidParameters> PoreSpecificati
         &self,
         bulk: &State<U, DFT<F>>,
         external_potential: Option<&Array2<f64>>,
+        specification: Option<DFTSpecifications>,
     ) -> EosResult<PoreProfile1D<U, F>> {
         let dft = &bulk.eos;
         let n_grid = self.n_grid.unwrap_or(DEFAULT_GRID_POINTS);
@@ -195,7 +206,13 @@ impl<U: EosUnit, F: HelmholtzEnergyFunctional + FluidParameters> PoreSpecificati
         let convolver = ConvolverFFT::plan(&grid, &weight_functions, Some(1));
 
         Ok(PoreProfile {
-            profile: DFTProfile::new(grid, convolver, bulk, Some(external_potential))?,
+            profile: DFTProfile::new(
+                grid,
+                convolver,
+                bulk,
+                Some(external_potential),
+                specification,
+            )?,
             grand_potential: None,
             interfacial_tension: None,
         })
@@ -209,6 +226,7 @@ impl<U: EosUnit, F: HelmholtzEnergyFunctional, P: FluidParameters> PoreSpecifica
         &self,
         bulk: &State<U, DFT<F>>,
         external_potential: Option<&Array4<f64>>,
+        specification: Option<DFTSpecifications>,
     ) -> EosResult<PoreProfile3D<U, F>> {
         let dft = &bulk.eos;
 
@@ -251,7 +269,13 @@ impl<U: EosUnit, F: HelmholtzEnergyFunctional, P: FluidParameters> PoreSpecifica
         let convolver = ConvolverFFT::plan(&grid, &weight_functions, Some(1));
 
         Ok(PoreProfile {
-            profile: DFTProfile::new(grid, convolver, bulk, Some(external_potential))?,
+            profile: DFTProfile::new(
+                grid,
+                convolver,
+                bulk,
+                Some(external_potential),
+                specification,
+            )?,
             grand_potential: None,
             interfacial_tension: None,
         })

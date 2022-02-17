@@ -247,7 +247,10 @@ where
                 .vapor()
                 .clone();
         }
-        let external_potential = pore.initialize(&bulk, None)?.profile.external_potential;
+        let external_potential = pore
+            .initialize(&bulk, None, None)?
+            .profile
+            .external_potential;
 
         for i in 0..pressure.len() {
             let mut bulk = StateBuilder::new(functional)
@@ -261,7 +264,7 @@ where
                     .vapor()
                     .clone();
             }
-            let mut p = pore.initialize(&bulk, Some(&external_potential))?;
+            let mut p = pore.initialize(&bulk, Some(&external_potential), None)?;
             let p2 = p.clone();
             if let Some(Ok(l)) = profiles.last() {
                 p.profile.density = l.profile.density.clone();
@@ -300,8 +303,8 @@ where
             .liquid()
             .build()?;
 
-        let mut vapor = pore.initialize(&vapor_bulk, None)?.solve(None)?;
-        let mut liquid = pore.initialize(&liquid_bulk, None)?.solve(solver)?;
+        let mut vapor = pore.initialize(&vapor_bulk, None, None)?.solve(None)?;
+        let mut liquid = pore.initialize(&liquid_bulk, None, None)?.solve(solver)?;
 
         // calculate initial value for the molar gibbs energy
         let nv = vapor.profile.bulk.density
