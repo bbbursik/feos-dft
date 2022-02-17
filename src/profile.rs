@@ -203,6 +203,7 @@ where
 
         // initialize external potential
         let external_potential = external_potential.unwrap_or_else(|| {
+            println!("inside unwrap or else --> should not be here");
             let mut n_grid = vec![dft.component_index.len()];
             grid.axes()
                 .iter()
