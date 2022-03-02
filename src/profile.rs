@@ -835,7 +835,6 @@ where
     D::Larger: Dimension<Smaller = D>,
     F: HelmholtzEnergyFunctional,
 {
-    
     // pub fn weight_constants(&self) -> Vec<Array<HyperDual64, D::Larger>> {
     //     self
     //         .convolver
@@ -858,6 +857,16 @@ where
             self.temperature.to_reduced(U::reference_temperature())?,
             &self.density.to_reduced(U::reference_density())?,
             &self.convolver,
+            &self.convolver_wd,
+        )?;
+        Ok(dfdrho)
+    }
+
+    pub fn functional_derivative_fft(&self) -> EosResult<Array<f64, D::Larger>> {
+        let (_, dfdrho) = self.dft.functional_derivative(
+            self.temperature.to_reduced(U::reference_temperature())?,
+            &self.density.to_reduced(U::reference_density())?,
+            &self.convolver_wd,
             &self.convolver_wd,
         )?;
         Ok(dfdrho)

@@ -6,8 +6,8 @@ use crate::profile::{DFTProfile, DFTSpecifications};
 use crate::solver::DFTSolver;
 use feos_core::{Contributions, EosError, EosResult, EosUnit, PhaseEquilibrium};
 use ndarray::{s, Array, Array1, Array2, Axis as Axis_nd, Ix1};
-use num_dual::{HyperDual64, HyperDualVec, HyperDualVec64};
 use ndarray_npy::write_npy;
+use num_dual::{HyperDual64, HyperDualVec, HyperDualVec64};
 use quantity::{QuantityArray1, QuantityArray2, QuantityScalar};
 
 mod surface_tension_diagram;
@@ -70,7 +70,7 @@ impl<U: EosUnit, F: HelmholtzEnergyFunctional> PlanarInterface<U, F> {
         vle: &PhaseEquilibrium<U, DFT<F>, 2>,
         n_grid: usize,
         l_grid: QuantityScalar<U>,
-        local_flag: bool,
+        local_flag: usize,
     ) -> EosResult<Self> {
         let dft = &vle.vapor().eos;
 
@@ -85,7 +85,8 @@ impl<U: EosUnit, F: HelmholtzEnergyFunctional> PlanarInterface<U, F> {
 
         let weight_functions = dft.functional.weight_functions(t);
 
-        if local_flag {
+        if local_flag == 1 {
+            // nur fd mit grad
             // for local version
 
             let weight_functions_hd: Vec<_> = dft
@@ -104,18 +105,18 @@ impl<U: EosUnit, F: HelmholtzEnergyFunctional> PlanarInterface<U, F> {
                 .map(|w| w.weight_constants(k0, 1))
                 .collect();
 
-            for (i, wc) in weight_constants.iter().enumerate(){
+            for (i, wc) in weight_constants.iter().enumerate() {
                 let filename0 = i.to_string().to_owned();
                 let filename1 = i.to_string().to_owned();
                 let filename2 = i.to_string().to_owned();
                 let w0 = wc.mapv(|w| w.re);
                 let w1 = wc.mapv(|w| -w.eps1[0]);
                 let w2 = wc.mapv(|w| -0.5 * w.eps1eps2[(0, 0)]);
-                write_npy( filename0 + "_wc0.npy", &w0).unwrap();
-                write_npy( filename1 + "_wc1.npy", &w1).unwrap();
-                write_npy( filename2 + "_wc2.npy", &w2).unwrap();
+                write_npy(filename0 + "_wc0.npy", &w0).unwrap();
+                write_npy(filename1 + "_wc1.npy", &w1).unwrap();
+                write_npy(filename2 + "_wc2.npy", &w2).unwrap();
             }
-            
+
             let convolver = GradConvolver::new(
                 (Axis::new_cartesian(n_grid, l_grid, None)?).grid,
                 weight_functions,
@@ -128,7 +129,122 @@ impl<U: EosUnit, F: HelmholtzEnergyFunctional> PlanarInterface<U, F> {
                 surface_tension: None,
                 equimolar_radius: None,
             })
-        } else {
+        } else if local_flag == 2 {
+            //nur wd mit grad
+
+            let convolver = ConvolverFFT::plan(&grid, &weight_functions, None);
+
+            let weight_functions_hd: Vec<_> = dft
+                .functional
+                .contributions()
+                .iter()
+                .map(|c| c.weight_functions(HyperDual64::from(t)))
+                .collect();
+
+            // let convolver_wd = ConvolverFFT::plan(&grid, &weight_functions, None);
+
+            let k0 = HyperDual64::from(0.0).derive1().derive2();
+
+            let weight_constants: Vec<_> = weight_functions_hd
+                .iter()
+                .map(|w| w.weight_constants(k0, 1))
+                .collect();
+
+            // initialize convolver
+            let t = vle
+                .vapor()
+                .temperature
+                .to_reduced(U::reference_temperature())?;
+
+            let weight_functions = dft.functional.weight_functions(t);
+
+            let convolver_wd = GradConvolver::new(
+                (Axis::new_cartesian(n_grid, l_grid, None)?).grid,
+                weight_functions,
+                weight_constants,
+            );
+
+            Ok(Self {
+                profile: DFTProfile::new(grid, convolver, convolver_wd, vle.vapor(), None)?,
+                vle: vle.clone(),
+                surface_tension: None,
+                equimolar_radius: None,
+            })
+        } else if local_flag == 3 {
+            // wd und fd mit grad
+            // for local version
+
+            let weight_functions_hd: Vec<_> = dft
+                .functional
+                .contributions()
+                .iter()
+                .map(|c| c.weight_functions(HyperDual64::from(t)))
+                .collect();
+
+            // let convolver_wd = ConvolverFFT::plan(&grid, &weight_functions, None);
+
+            let k0 = HyperDual64::from(0.0).derive1().derive2();
+
+            let weight_constants: Vec<_> = weight_functions_hd
+                .iter()
+                .map(|w| w.weight_constants(k0, 1))
+                .collect();
+
+            for (i, wc) in weight_constants.iter().enumerate() {
+                let filename0 = i.to_string().to_owned();
+                let filename1 = i.to_string().to_owned();
+                let filename2 = i.to_string().to_owned();
+                let w0 = wc.mapv(|w| w.re);
+                let w1 = wc.mapv(|w| -w.eps1[0]);
+                let w2 = wc.mapv(|w| -0.5 * w.eps1eps2[(0, 0)]);
+                write_npy(filename0 + "_wc0.npy", &w0).unwrap();
+                write_npy(filename1 + "_wc1.npy", &w1).unwrap();
+                write_npy(filename2 + "_wc2.npy", &w2).unwrap();
+            }
+
+            let convolver = GradConvolver::new(
+                (Axis::new_cartesian(n_grid, l_grid, None)?).grid,
+                weight_functions,
+                weight_constants,
+            );
+
+            let weight_functions_hd: Vec<_> = dft
+                .functional
+                .contributions()
+                .iter()
+                .map(|c| c.weight_functions(HyperDual64::from(t)))
+                .collect();
+
+            // let convolver_wd = ConvolverFFT::plan(&grid, &weight_functions, None);
+
+            let k0 = HyperDual64::from(0.0).derive1().derive2();
+
+            let weight_constants: Vec<_> = weight_functions_hd
+                .iter()
+                .map(|w| w.weight_constants(k0, 1))
+                .collect();
+
+            // initialize convolver
+            let t = vle
+                .vapor()
+                .temperature
+                .to_reduced(U::reference_temperature())?;
+
+            let weight_functions = dft.functional.weight_functions(t);
+
+            let convolver_wd = GradConvolver::new(
+                (Axis::new_cartesian(n_grid, l_grid, None)?).grid,
+                weight_functions,
+                weight_constants,
+            );
+
+            Ok(Self {
+                profile: DFTProfile::new(grid, convolver, convolver_wd, vle.vapor(), None)?,
+                vle: vle.clone(),
+                surface_tension: None,
+                equimolar_radius: None,
+            })
+        } else if local_flag == 0 {
             let convolver = ConvolverFFT::plan(&grid, &weight_functions, None);
             let convolver_wd = ConvolverFFT::plan(&grid, &weight_functions, None);
 
@@ -138,6 +254,8 @@ impl<U: EosUnit, F: HelmholtzEnergyFunctional> PlanarInterface<U, F> {
                 surface_tension: None,
                 equimolar_radius: None,
             })
+        } else {
+            unreachable!();
         }
     }
 
@@ -146,7 +264,7 @@ impl<U: EosUnit, F: HelmholtzEnergyFunctional> PlanarInterface<U, F> {
         n_grid: usize,
         l_grid: QuantityScalar<U>,
         critical_temperature: QuantityScalar<U>,
-        local_flag: bool,
+        local_flag: usize,
     ) -> EosResult<Self> {
         let mut profile = Self::new(vle, n_grid, l_grid, local_flag)?;
 
@@ -203,7 +321,7 @@ impl<U: EosUnit, F: HelmholtzEnergyFunctional> PlanarInterface<U, F> {
         let l_grid = (MIN_WIDTH * U::reference_length())
             .max(w_pdgt * RELATIVE_WIDTH)
             .unwrap();
-        let mut profile = Self::new(vle, n_grid, l_grid, false)?;
+        let mut profile = Self::new(vle, n_grid, l_grid, 0)?;
 
         // interpolate density profile from pDGT to DFT
         let r = l_grid * 0.5;

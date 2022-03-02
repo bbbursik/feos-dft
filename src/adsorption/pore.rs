@@ -1,5 +1,5 @@
 use crate::adsorption::{ExternalPotential, FluidParameters};
-use crate::convolver::ConvolverFFT;
+use crate::convolver::{ConvolverFFT, GradConvolver};
 use crate::functional::{HelmholtzEnergyFunctional, DFT};
 use crate::geometry::{Axis, AxisGeometry, Grid};
 use crate::profile::{DFTProfile, CUTOFF_RADIUS, MAX_POTENTIAL};
@@ -9,6 +9,7 @@ use ndarray::prelude::*;
 use ndarray::Axis as Axis_nd;
 use ndarray::Zip;
 use ndarray_stats::QuantileExt;
+use num_dual::HyperDual64;
 use quantity::{QuantityArray2, QuantityScalar};
 use std::rc::Rc;
 
@@ -87,6 +88,7 @@ pub trait PoreSpecification<U, D: Dimension, F> {
     fn initialize(
         &self,
         bulk: &State<U, DFT<F>>,
+        local_flag: usize,
         external_potential: Option<&Array<f64, D::Larger>>,
     ) -> EosResult<PoreProfile<U, D, F>>;
 }
@@ -159,6 +161,7 @@ impl<U: EosUnit, F: HelmholtzEnergyFunctional + FluidParameters> PoreSpecificati
     fn initialize(
         &self,
         bulk: &State<U, DFT<F>>,
+        local_flag: usize,
         external_potential: Option<&Array2<f64>>,
     ) -> EosResult<PoreProfile1D<U, F>> {
         let dft = &bulk.eos;
@@ -193,20 +196,139 @@ impl<U: EosUnit, F: HelmholtzEnergyFunctional + FluidParameters> PoreSpecificati
         let grid = Grid::new_1d(axis);
         let t = bulk.temperature.to_reduced(U::reference_temperature())?;
         let weight_functions = dft.functional.weight_functions(t);
-        let convolver = ConvolverFFT::plan(&grid, &weight_functions, Some(1));
-        let convolver_wd = ConvolverFFT::plan(&grid, &weight_functions, Some(1));
 
-        Ok(PoreProfile {
-            profile: DFTProfile::new(
-                grid,
-                convolver,
-                convolver_wd,
-                bulk,
-                Some(external_potential),
-            )?,
-            grand_potential: None,
-            interfacial_tension: None,
-        })
+        if local_flag == 1 {
+            // for local version
+
+            let weight_functions_hd: Vec<_> = dft
+                .functional
+                .contributions()
+                .iter()
+                .map(|c| c.weight_functions(HyperDual64::from(t)))
+                .collect();
+
+            let convolver_wd = ConvolverFFT::plan(&grid, &weight_functions, None);
+
+            let k0 = HyperDual64::from(0.0).derive1().derive2();
+
+            let weight_constants: Vec<_> = weight_functions_hd
+                .iter()
+                .map(|w| w.weight_constants(k0, 1))
+                .collect();
+
+            let axis = match self.geometry {
+                AxisGeometry::Cartesian => {
+                    let potential_offset =
+                        POTENTIAL_OFFSET * self.functional.functional.sigma_ff().max().unwrap();
+                    Axis::new_cartesian(n_grid, 0.5 * self.pore_size, Some(potential_offset))?
+                }
+                AxisGeometry::Polar => Axis::new_polar(n_grid, self.pore_size)?,
+                AxisGeometry::Spherical => Axis::new_spherical(n_grid, self.pore_size)?,
+            };
+
+            let convolver = GradConvolver::new(axis.grid, weight_functions, weight_constants);
+
+            Ok(PoreProfile {
+                profile: DFTProfile::new(
+                    grid,
+                    convolver,
+                    convolver_wd,
+                    bulk,
+                    Some(external_potential),
+                )?,
+                grand_potential: None,
+                interfacial_tension: None,
+            })
+        } else if local_flag == 2 {
+            // for local version
+
+            let weight_functions_hd: Vec<_> = dft
+                .functional
+                .contributions()
+                .iter()
+                .map(|c| c.weight_functions(HyperDual64::from(t)))
+                .collect();
+
+            // let convolver_wd = ConvolverFFT::plan(&grid, &weight_functions, None);
+
+            let k0 = HyperDual64::from(0.0).derive1().derive2();
+
+            let weight_constants: Vec<_> = weight_functions_hd
+                .iter()
+                .map(|w| w.weight_constants(k0, 1))
+                .collect();
+
+            let axis = match self.geometry {
+                AxisGeometry::Cartesian => {
+                    let potential_offset =
+                        POTENTIAL_OFFSET * self.functional.functional.sigma_ff().max().unwrap();
+                    Axis::new_cartesian(n_grid, 0.5 * self.pore_size, Some(potential_offset))?
+                }
+                AxisGeometry::Polar => Axis::new_polar(n_grid, self.pore_size)?,
+                AxisGeometry::Spherical => Axis::new_spherical(n_grid, self.pore_size)?,
+            };
+
+            let convolver = GradConvolver::new(axis.grid, weight_functions, weight_constants);
+
+            let axis = match self.geometry {
+                AxisGeometry::Cartesian => {
+                    let potential_offset =
+                        POTENTIAL_OFFSET * self.functional.functional.sigma_ff().max().unwrap();
+                    Axis::new_cartesian(n_grid, 0.5 * self.pore_size, Some(potential_offset))?
+                }
+                AxisGeometry::Polar => Axis::new_polar(n_grid, self.pore_size)?,
+                AxisGeometry::Spherical => Axis::new_spherical(n_grid, self.pore_size)?,
+            };
+
+            let weight_functions_hd: Vec<_> = dft
+                .functional
+                .contributions()
+                .iter()
+                .map(|c| c.weight_functions(HyperDual64::from(t)))
+                .collect();
+
+            // let convolver_wd = ConvolverFFT::plan(&grid, &weight_functions, None);
+
+            let k0 = HyperDual64::from(0.0).derive1().derive2();
+
+            let weight_constants: Vec<_> = weight_functions_hd
+                .iter()
+                .map(|w| w.weight_constants(k0, 1))
+                .collect();
+
+            let t = bulk.temperature.to_reduced(U::reference_temperature())?;
+            let weight_functions = dft.functional.weight_functions(t);
+            let convolver_wd = GradConvolver::new(axis.grid, weight_functions, weight_constants);
+
+            Ok(PoreProfile {
+                profile: DFTProfile::new(
+                    grid,
+                    convolver,
+                    convolver_wd,
+                    bulk,
+                    Some(external_potential),
+                )?,
+                grand_potential: None,
+                interfacial_tension: None,
+            })
+        } else if local_flag == 0 {
+            let convolver = ConvolverFFT::plan(&grid, &weight_functions, Some(1));
+            let convolver_wd = ConvolverFFT::plan(&grid, &weight_functions, Some(1));
+
+            Ok(PoreProfile {
+                profile: DFTProfile::new(
+                    grid,
+                    convolver,
+                    convolver_wd,
+                    bulk,
+                    Some(external_potential),
+                )?,
+                grand_potential: None,
+                interfacial_tension: None,
+            })
+        } else {
+            unreachable!();
+        }
     }
 }
 
@@ -216,6 +338,7 @@ impl<U: EosUnit, F: HelmholtzEnergyFunctional, P: FluidParameters> PoreSpecifica
     fn initialize(
         &self,
         bulk: &State<U, DFT<F>>,
+        local_flag: usize,
         external_potential: Option<&Array4<f64>>,
     ) -> EosResult<PoreProfile3D<U, F>> {
         let dft = &bulk.eos;

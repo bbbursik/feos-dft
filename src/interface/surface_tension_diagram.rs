@@ -32,7 +32,7 @@ impl<U: EosUnit, F: HelmholtzEnergyFunctional> SurfaceTensionDiagram<U, F> {
                     10,
                     100.0 * U::reference_length(),
                     500.0 * U::reference_temperature(),
-                    false,
+                    0,
                 )
             } else {
                 // initialize with pDGT for single segments and tanh for mixtures and segment DFT
@@ -44,7 +44,7 @@ impl<U: EosUnit, F: HelmholtzEnergyFunctional> SurfaceTensionDiagram<U, F> {
                         n_grid,
                         l_grid.unwrap_or(100.0 * U::reference_length()),
                         critical_temperature.unwrap_or(500.0 * U::reference_temperature()),
-                        false,
+                        0,
                     )
                 }
                 .map(|mut profile| {

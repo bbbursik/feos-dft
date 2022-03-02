@@ -117,6 +117,15 @@ macro_rules! impl_profile {
                 Ok(self.0.profile.functional_derivative()?.view().to_pyarray(py))
             }
 
+            #[getter]
+            fn get_functional_derivative_fft<'py>(
+                &self,
+                py: Python<'py>,
+            ) -> PyResult<&'py $arr2<f64>> {
+                Ok(self.0.profile.functional_derivative_fft()?.view().to_pyarray(py))
+            }
+
+
             #[args(contributions = "PyContributions::Total()")]
             #[pyo3(text_signature = "($self, contributions)")]
             fn entropy_density(

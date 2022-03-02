@@ -59,7 +59,8 @@ struct FFTWeightFunctions<T, D: Dimension> {
 }
 
 impl<T, D: Dimension> FFTWeightFunctions<T, D> {
-    /// Calculates the total number of weighted densities for each functional
+    /// Calculates the
+    ///  number of weighted densities for each functional
     /// from multiple weight functions depending on dimension.
     pub fn n_weighted_densities(&self, dimensions: usize) -> usize {
         (if self.local_density { self.segments } else { 0 })
@@ -112,7 +113,7 @@ where
     pub fn gradient(&self, f: &Array<T, Ix2>, dx: T) -> Array<T, Ix2> {
         // println!("grad version: 17:16");
         let grad = Array::from_shape_fn(f.raw_dim(), |(c, i)| {
-            let width: usize = 20;
+            let width: usize = 12;
             let width_f64 = width as f64;
             let d = if i as isize - width as isize <= 0 {
                 (f[(c, i + width)] - f[(c, i)]) * 0.0 // Left value --> where from?
@@ -175,7 +176,7 @@ where
     pub fn gradient_3d(&self, f: &Array<T, Ix3>, dx: T) -> Array<T, Ix3> {
         // println!("grad version: 17:16");
         let grad = Array::from_shape_fn(f.raw_dim(), |(c1, c2, i)| {
-            let width: usize = 20;
+            let width: usize = 12;
             let width_f64 = width as f64;
             let d = if i as isize - width as isize <= 0 {
                 (f[(c1, c2, i + width)] - f[(c1, c2, i)]) * 0.0 // Left value --> where from?
@@ -192,7 +193,7 @@ where
     pub fn laplace(&self, f: &Array<T, Ix2>, dx: T) -> Array<T, Ix2> {
         // println!("lapl-version: 14:00");
         let lapl = Array::from_shape_fn(f.raw_dim(), |(c, i)| {
-            let width: usize = 20;
+            let width: usize = 12;
             let width_f64 = width as f64;
             let d = if i as isize - width as isize <= 0 {
                 // (f[(c, 2)] - f[(c, 0)]) * 0.0 // Left value --> where from?

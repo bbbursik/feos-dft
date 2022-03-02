@@ -70,10 +70,12 @@ macro_rules! impl_pore {
             fn initialize(
                 &self,
                 bulk: &PyState,
+                local_flag: usize,
                 external_potential: Option<&PyArray2<f64>>,
             ) -> PyResult<PyPoreProfile1D> {
                 Ok(PyPoreProfile1D(self.0.initialize(
                     &bulk.0,
+                    local_flag,
                     external_potential.map(|e| e.to_owned_array()).as_ref(),
                 )?))
             }
@@ -169,11 +171,15 @@ macro_rules! impl_pore {
             fn initialize(
                 &self,
                 bulk: &PyState,
+                local_flag: usize,
                 external_potential: Option<&PyArray4<f64>>,
+
             ) -> PyResult<PyPoreProfile3D> {
                 Ok(PyPoreProfile3D(self.0.initialize(
                     &bulk.0,
+                    local_flag,
                     external_potential.map(|e| e.to_owned_array()).as_ref(),
+
                 )?))
             }
         }
