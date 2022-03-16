@@ -171,6 +171,7 @@ impl PyExternalPotential {
     /// Free-energy averaged potential
     ///
     /// for details see: `J. Eller, J. Gross (2021) <https://pubs.acs.org/doi/abs/10.1021/acs.langmuir.0c03287>`_
+    /// for cartesian coordinates: wall has to be on the right side only (coordinates should contain only half the pore). Due to symmetry only half the pore size is considered.
     ///
     /// Parameters
     /// ----------
@@ -186,6 +187,7 @@ impl PyExternalPotential {
     ///     The size of the unit cell.
     /// n_grid : [int; 3]
     ///     The number of grid points in each direction.
+    /// cutoff_radius : SINumber, optional
     /// Returns
     /// -------
     /// ExternalPotential
@@ -201,6 +203,7 @@ impl PyExternalPotential {
         pore_center: [f64; 3],
         system_size: [PySINumber; 3],
         n_grid: [usize; 2],
+        cutoff_radius: Option<PySINumber>,
     ) -> Self {
         Self(ExternalPotential::FreeEnergyAveraged {
             coordinates: coordinates.clone().into(),
@@ -213,6 +216,7 @@ impl PyExternalPotential {
                 system_size[2].into(),
             ],
             n_grid: n_grid,
+            cutoff_radius: cutoff_radius.map(|c| c.into()),
         })
     }
 }

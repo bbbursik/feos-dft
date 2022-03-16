@@ -1,6 +1,6 @@
 use crate::profile::{CUTOFF_RADIUS, MAX_POTENTIAL};
 use crate::AxisGeometry;
-use feos_core::EosUnit;
+use feos_core::{EosResult, EosUnit};
 use gauss_quad::GaussLegendre;
 use ndarray::{Array1, Array2, Zip};
 use ndarray_stats::SummaryStatisticsExt;
@@ -20,12 +20,20 @@ pub fn calculate_fea_potential<U: EosUnit>(
     n_grid: &[usize; 2],
     temperature: f64,
     geometry: AxisGeometry,
-) -> Array1<f64> {
+    cutoff_radius: &Option<QuantityScalar<U>>,
+) -> EosResult<Array1<f64>> {
     // allocate external potential
     let mut potential: Array1<f64> = Array1::zeros(grid.len());
 
-    // calculate squared cutoff radius
-    let cutoff_radius2 = CUTOFF_RADIUS.powi(2);
+    let cutoff_radius = cutoff_radius
+        .unwrap_or(CUTOFF_RADIUS * U::reference_length())
+        .to_reduced(U::reference_length())?;
+
+    // square cut-off radius
+    let cutoff_radius2 = cutoff_radius.powi(2);
+
+    // // calculate squared cutoff radius
+    // let cutoff_radius2 = CUTOFF_RADIUS.powi(2);
 
     // dimensionless solid coordinates
     let coordinates = Array2::from_shape_fn(coordinates.raw_dim(), |(i, j)| {
@@ -90,6 +98,7 @@ pub fn calculate_fea_potential<U: EosUnit>(
 
     // calculate sum of weights
     let weights_sum = weights.sum();
+    dbg!(weights_sum);
 
     // calculate FEA potential
     Zip::indexed(&mut potential).par_for_each(|i0, f| {
@@ -127,7 +136,7 @@ pub fn calculate_fea_potential<U: EosUnit>(
         *f = potential_2d.weighted_sum(&weights).unwrap();
     });
 
-    -temperature * potential.map(|p| (p / weights_sum).ln())
+    Ok(-temperature * potential.map(|p| (p / weights_sum).ln()))
 }
 
 // -temperature * potential.map(|p| (p / weights_sum).ln())

@@ -1,6 +1,6 @@
 use crate::adsorption::fea_potential::calculate_fea_potential;
 use crate::geometry::AxisGeometry;
-use feos_core::EosUnit;
+use feos_core::{EosResult, EosUnit};
 use libc::c_double;
 use ndarray::{Array1, Array2, Axis as Axis_nd};
 use quantity::{QuantityArray2, QuantityScalar};
@@ -48,6 +48,7 @@ pub enum ExternalPotential<U> {
         pore_center: [f64; 3],
         system_size: [QuantityScalar<U>; 3],
         n_grid: [usize; 2],
+        cutoff_radius: Option<QuantityScalar<U>>,
     },
 
     /// Custom potential
@@ -68,9 +69,9 @@ impl<U: EosUnit> ExternalPotential<U> {
         z_grid: &Array1<f64>,
         fluid_parameters: &P,
         temperature: f64,
-    ) -> Array2<f64> {
+    ) -> EosResult<Array2<f64>> {
         if let ExternalPotential::Custom(potential) = self {
-            return potential.clone();
+            return Ok(potential.clone());
         }
 
         // Allocate external potential
@@ -168,6 +169,7 @@ impl<U: EosUnit> ExternalPotential<U> {
                     pore_center,
                     system_size,
                     n_grid,
+                    cutoff_radius,
                 } => {
                     // combining rules
                     let epsilon_k_sf =
@@ -185,12 +187,13 @@ impl<U: EosUnit> ExternalPotential<U> {
                         n_grid,
                         temperature,
                         AxisGeometry::Cartesian,
-                    )
+                        cutoff_radius,
+                    )?
                 }
                 Self::Custom(_) => unreachable!(),
             });
         }
-        ext_pot
+        Ok(ext_pot)
     }
 
     // Evaluate the external potential in cylindrical coordinates for a given grid and fluid parameters.
@@ -200,9 +203,9 @@ impl<U: EosUnit> ExternalPotential<U> {
         pore_size: f64,
         fluid_parameters: &P,
         temperature: f64,
-    ) -> Array2<f64> {
+    ) -> EosResult<Array2<f64>> {
         if let ExternalPotential::Custom(potential) = self {
-            return potential.clone();
+            return Ok(potential.clone());
         }
 
         // Allocate external potential
@@ -314,6 +317,7 @@ impl<U: EosUnit> ExternalPotential<U> {
                     pore_center,
                     system_size,
                     n_grid,
+                    cutoff_radius,
                 } => {
                     // combining rules
                     let epsilon_k_sf =
@@ -331,12 +335,13 @@ impl<U: EosUnit> ExternalPotential<U> {
                         n_grid,
                         temperature,
                         AxisGeometry::Polar,
-                    )
+                        cutoff_radius,
+                    )?
                 }
                 Self::Custom(_) => unreachable!(),
             });
         }
-        ext_pot
+        Ok(ext_pot)
     }
 
     // Evaluate the external potential in spherical coordinates for a given grid and fluid parameters.
@@ -346,9 +351,9 @@ impl<U: EosUnit> ExternalPotential<U> {
         pore_size: f64,
         fluid_parameters: &P,
         temperature: f64,
-    ) -> Array2<f64> {
+    ) -> EosResult<Array2<f64>> {
         if let ExternalPotential::Custom(potential) = self {
-            return potential.clone();
+            return Ok(potential.clone());
         }
 
         // Allocate external potential
@@ -475,6 +480,7 @@ impl<U: EosUnit> ExternalPotential<U> {
                     pore_center,
                     system_size,
                     n_grid,
+                    cutoff_radius,
                 } => {
                     // combining rules
                     let epsilon_k_sf =
@@ -492,12 +498,13 @@ impl<U: EosUnit> ExternalPotential<U> {
                         n_grid,
                         temperature,
                         AxisGeometry::Spherical,
-                    )
+                        cutoff_radius,
+                    )?
                 }
                 Self::Custom(_) => unreachable!(),
             });
         }
-        ext_pot
+        Ok(ext_pot)
     }
 }
 

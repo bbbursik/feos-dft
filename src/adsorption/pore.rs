@@ -303,24 +303,24 @@ fn external_potential_1d<U: EosUnit, P: FluidParameters>(
                 &(effective_pore_size + &axis.grid),
                 fluid_parameters,
                 t,
-            ) + &potential.calculate_cartesian_potential(
+            )? + &potential.calculate_cartesian_potential(
                 &(effective_pore_size - &axis.grid),
                 fluid_parameters,
                 t,
-            )
+            )?
         }
         AxisGeometry::Spherical => potential.calculate_spherical_potential(
             &axis.grid,
             effective_pore_size,
             fluid_parameters,
             t,
-        ),
+        )?,
         AxisGeometry::Polar => potential.calculate_cylindrical_potential(
             &axis.grid,
             effective_pore_size,
             fluid_parameters,
             t,
-        ),
+        )?,
     } / t;
 
     for (i, &z) in axis.grid.iter().enumerate() {
