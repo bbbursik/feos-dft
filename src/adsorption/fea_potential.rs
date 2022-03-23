@@ -135,7 +135,7 @@ pub fn calculate_fea_potential<U: EosUnit>(
         }
         *f = potential_2d.weighted_sum(&weights).unwrap();
     });
-
+    dbg!(temperature);
     Ok(-temperature * potential.map(|p| (p / weights_sum).ln()))
 }
 

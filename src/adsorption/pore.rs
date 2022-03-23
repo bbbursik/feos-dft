@@ -56,6 +56,7 @@ pub struct Pore3D<U, F> {
     epsilon_k_ss: Array1<f64>,
     potential_cutoff: Option<f64>,
     cutoff_radius: Option<QuantityScalar<U>>,
+    l_grid: Option<[QuantityScalar<U>; 3]>,
 }
 
 impl<U, F> Pore3D<U, F> {
@@ -68,6 +69,7 @@ impl<U, F> Pore3D<U, F> {
         epsilon_k_ss: Array1<f64>,
         potential_cutoff: Option<f64>,
         cutoff_radius: Option<QuantityScalar<U>>,
+        l_grid: Option<[QuantityScalar<U>; 3]>,
     ) -> Self {
         Self {
             functional: functional.clone(),
@@ -78,6 +80,7 @@ impl<U, F> Pore3D<U, F> {
             epsilon_k_ss,
             potential_cutoff,
             cutoff_radius,
+            l_grid,
         }
     }
 }
@@ -230,10 +233,13 @@ impl<U: EosUnit, F: HelmholtzEnergyFunctional, P: FluidParameters> PoreSpecifica
     ) -> EosResult<PoreProfile3D<U, F>> {
         let dft = &bulk.eos;
 
+        // determine length of grid. Usually this is the system size but in some cases it is nice to set the DFT-domain different from the system size (e.g. when the cutoff radius is bigger than the DFT domain)
+        let l_grid = self.l_grid.unwrap_or(self.system_size);
+
         // generate grid
-        let x = Axis::new_cartesian(self.n_grid[0], self.system_size[0], None)?;
-        let y = Axis::new_cartesian(self.n_grid[1], self.system_size[1], None)?;
-        let z = Axis::new_cartesian(self.n_grid[2], self.system_size[2], None)?;
+        let x = Axis::new_cartesian(self.n_grid[0], l_grid[0], None)?;
+        let y = Axis::new_cartesian(self.n_grid[1], l_grid[1], None)?;
+        let z = Axis::new_cartesian(self.n_grid[2], l_grid[2], None)?;
 
         // move center of geometry of solute to box center
         let coordinates = Array2::from_shape_fn(self.coordinates.raw_dim(), |(i, j)| {

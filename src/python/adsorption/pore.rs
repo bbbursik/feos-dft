@@ -195,13 +195,15 @@ macro_rules! impl_pore {
         ///     Maximum value for the external potential.
         /// cutoff_radius: SINumber, optional
         ///     The cutoff radius for the calculation of solid-fluid interactions.
+        /// l_grid: [SINumber;3], optional
+        ///     length of the DFT domain; usually this is set as system_size, but in some cases helpful to set independently (e.g. if cutoff radius > system_size)
         ///
         /// Returns
         /// -------
         /// Pore3D
         ///
         #[pyclass(name = "Pore3D", unsendable)]
-        #[pyo3(text_signature = "(functional, system_size, n_grid, coordinates, sigma_ss, epsilon_k_ss, potential_cutoff=None, cutoff_radius=None)")]
+        #[pyo3(text_signature = "(functional, system_size, n_grid, coordinates, sigma_ss, epsilon_k_ss, potential_cutoff=None, cutoff_radius=None, l_grid=None)")]
         pub struct PyPore3D(Pore3D<SIUnit, $func>);
 
         #[pyclass(name = "PoreProfile3D", unsendable)]
@@ -221,6 +223,8 @@ macro_rules! impl_pore {
                 epsilon_k_ss: &PyArray1<f64>,
                 potential_cutoff: Option<f64>,
                 cutoff_radius: Option<PySINumber>,
+                l_grid: Option<[PySINumber; 3]>,
+
             ) -> Self {
                 Self(Pore3D::new(
                     &functional.0,
@@ -231,6 +235,7 @@ macro_rules! impl_pore {
                     epsilon_k_ss.to_owned_array(),
                     potential_cutoff,
                     cutoff_radius.map(|c| c.into()),
+                    l_grid.map(|c| [c[0].into(), c[1].into(), c[2].into()])
                 ))
             }
 
