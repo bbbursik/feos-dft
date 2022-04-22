@@ -134,15 +134,17 @@ macro_rules! impl_pore {
             /// Returns
             /// -------
             /// PoreProfile1D
-            #[pyo3(text_signature = "($self, bulk, external_potential=None, specification=None)")]
+            #[pyo3(text_signature = "($self, bulk, density=None, external_potential=None, specification=None)")]
             fn initialize(
                 &self,
                 bulk: &PyState,
+                density: Option<PySIArray2>,
                 external_potential: Option<&PyArray2<f64>>,
                 specification: Option<PyDFTSpecification>
             ) -> PyResult<PyPoreProfile1D> {
                 Ok(PyPoreProfile1D(self.0.initialize(
                     &bulk.0,
+                    density.as_deref(),
                     external_potential.map(|e| e.to_owned_array()).as_ref(),
                     specification.map(|s| s.0)
                 )?))
@@ -253,15 +255,17 @@ macro_rules! impl_pore {
             /// Returns
             /// -------
             /// PoreProfile3D
-            #[pyo3(text_signature = "($self, bulk, external_potential=None)")]
+            #[pyo3(text_signature = "($self, bulk, density=None, external_potential=None)")]
             fn initialize(
                 &self,
                 bulk: &PyState,
+                density: Option<PySIArray4>,
                 external_potential: Option<&PyArray4<f64>>,
                 specification: Option<PyDFTSpecification>
             ) -> PyResult<PyPoreProfile3D> {
                 Ok(PyPoreProfile3D(self.0.initialize(
                     &bulk.0,
+                    density.as_deref(),
                     external_potential.map(|e| e.to_owned_array()).as_ref(),
                     specification.map(|s| s.0)
                 )?))

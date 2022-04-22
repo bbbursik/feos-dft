@@ -205,6 +205,7 @@ where
         convolver: Rc<dyn Convolver<f64, D>>,
         bulk: &State<U, DFT<F>>,
         external_potential: Option<Array<f64, D::Larger>>,
+        density: Option<&QuantityArray<U, D::Larger>>,
         specification: Option<DFTSpecifications>,
     ) -> EosResult<Self> {
         let dft = bulk.eos.clone();
@@ -220,18 +221,24 @@ where
         });
 
         // intitialize density
-        let t = bulk.temperature.to_reduced(U::reference_temperature())?;
-        let isaft = dft
-            .isaft_integrals(t, &external_potential, &convolver)
-            .mapv(f64::abs)
-            * (-&external_potential).mapv(f64::exp);
-        let mut density = Array::zeros(external_potential.raw_dim());
-        let bulk_density = bulk.partial_density.to_reduced(U::reference_density())?;
-        for (s, &c) in dft.component_index.iter().enumerate() {
-            density
-                .index_axis_mut(Axis_nd(0), s)
-                .assign(&(isaft.index_axis(Axis_nd(0), s).map(|is| is.min(1.0)) * bulk_density[c]));
-        }
+
+        let density = if let Some(density) = density {
+            density.clone()
+        } else {
+            let t = bulk.temperature.to_reduced(U::reference_temperature())?;
+            let isaft = dft
+                .isaft_integrals(t, &external_potential, &convolver)
+                .mapv(f64::abs)
+                * (-&external_potential).mapv(f64::exp);
+            let mut density = Array::zeros(external_potential.raw_dim());
+            let bulk_density = bulk.partial_density.to_reduced(U::reference_density())?;
+            for (s, &c) in dft.component_index.iter().enumerate() {
+                density.index_axis_mut(Axis_nd(0), s).assign(
+                    &(isaft.index_axis(Axis_nd(0), s).map(|is| is.min(1.0)) * bulk_density[c]),
+                );
+            }
+            density * U::reference_density()
+        };
 
         let specification = specification.unwrap_or_default();
 
@@ -240,7 +247,7 @@ where
             convolver,
             dft: bulk.eos.clone(),
             temperature: bulk.temperature,
-            density: density * U::reference_density(),
+            density,
             chemical_potential: bulk.chemical_potential(Contributions::Total),
             specification: Rc::new(specification),
             // specification: Rc::new(DFTSpecifications::ChemicalPotential),

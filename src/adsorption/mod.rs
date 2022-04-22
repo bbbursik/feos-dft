@@ -248,7 +248,7 @@ where
                 .clone();
         }
         let external_potential = pore
-            .initialize(&bulk, None, None)?
+            .initialize(&bulk, None, None, None)?
             .profile
             .external_potential;
 
@@ -264,11 +264,14 @@ where
                     .vapor()
                     .clone();
             }
-            let mut p = pore.initialize(&bulk, Some(&external_potential), None)?;
-            let p2 = p.clone();
-            if let Some(Ok(l)) = profiles.last() {
-                p.profile.density = l.profile.density.clone();
-            }
+            let old_density = if let Some(Ok(l)) = profiles.last() {
+                Some(&l.profile.density)
+            } else {
+                None
+            };
+
+            let p = pore.initialize(&bulk, old_density, Some(&external_potential), None)?;
+            let p2 = pore.initialize(&bulk, None, Some(&external_potential), None)?;
             profiles.push(p.solve(solver).or_else(|_| p2.solve(solver)));
         }
 
@@ -303,8 +306,12 @@ where
             .liquid()
             .build()?;
 
-        let mut vapor = pore.initialize(&vapor_bulk, None, None)?.solve(None)?;
-        let mut liquid = pore.initialize(&liquid_bulk, None, None)?.solve(solver)?;
+        let mut vapor = pore
+            .initialize(&vapor_bulk, None, None, None)?
+            .solve(None)?;
+        let mut liquid = pore
+            .initialize(&liquid_bulk, None, None, None)?
+            .solve(solver)?;
 
         // calculate initial value for the molar gibbs energy
         let nv = vapor.profile.bulk.density

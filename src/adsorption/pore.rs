@@ -10,7 +10,7 @@ use ndarray::prelude::*;
 use ndarray::Axis as Axis_nd;
 use ndarray::Zip;
 use ndarray_stats::QuantileExt;
-use quantity::{QuantityArray2, QuantityScalar};
+use quantity::{QuantityArray, QuantityArray2, QuantityArray4, QuantityScalar};
 use std::rc::Rc;
 
 const POTENTIAL_OFFSET: f64 = 2.0;
@@ -91,6 +91,7 @@ pub trait PoreSpecification<U, D: Dimension, F> {
     fn initialize(
         &self,
         bulk: &State<U, DFT<F>>,
+        density: Option<&QuantityArray<U, D::Larger>>,
         external_potential: Option<&Array<f64, D::Larger>>,
         specification: Option<DFTSpecifications>,
     ) -> EosResult<PoreProfile<U, D, F>>;
@@ -171,6 +172,7 @@ impl<U: EosUnit, F: HelmholtzEnergyFunctional + FluidParameters> PoreSpecificati
     fn initialize(
         &self,
         bulk: &State<U, DFT<F>>,
+        density: Option<&QuantityArray2<U>>,
         external_potential: Option<&Array2<f64>>,
         specification: Option<DFTSpecifications>,
     ) -> EosResult<PoreProfile1D<U, F>> {
@@ -214,6 +216,7 @@ impl<U: EosUnit, F: HelmholtzEnergyFunctional + FluidParameters> PoreSpecificati
                 convolver,
                 bulk,
                 Some(external_potential),
+                density,
                 specification,
             )?,
             grand_potential: None,
@@ -228,6 +231,7 @@ impl<U: EosUnit, F: HelmholtzEnergyFunctional, P: FluidParameters> PoreSpecifica
     fn initialize(
         &self,
         bulk: &State<U, DFT<F>>,
+        density: Option<&QuantityArray4<U>>,
         external_potential: Option<&Array4<f64>>,
         specification: Option<DFTSpecifications>,
     ) -> EosResult<PoreProfile3D<U, F>> {
@@ -280,6 +284,7 @@ impl<U: EosUnit, F: HelmholtzEnergyFunctional, P: FluidParameters> PoreSpecifica
                 convolver,
                 bulk,
                 Some(external_potential),
+                density,
                 specification,
             )?,
             grand_potential: None,
