@@ -142,6 +142,7 @@ macro_rules! impl_pore {
                 epsilon_k_ss: &PyArray1<f64>,
                 potential_cutoff: Option<f64>,
                 cutoff_radius: Option<PySINumber>,
+                l_grid: Option<[PySINumber; 3]>,
             ) -> Self {
                 Self(Pore3D::new(
                     [system_size[0].into(), system_size[1].into(), system_size[2].into()],
@@ -151,6 +152,7 @@ macro_rules! impl_pore {
                     epsilon_k_ss.to_owned_array(),
                     potential_cutoff,
                     cutoff_radius.map(|c| c.into()),
+                    l_grid.map(|c| [c[0].into(), c[1].into(), c[2].into()])
                 ))
             }
 
