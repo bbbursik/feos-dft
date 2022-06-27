@@ -5,6 +5,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+### Added
+- Added getters for the fields of `Pore1D` in Python. [#30](https://github.com/feos-org/feos-dft/pull/30)
+
+### Changed
+- Made FMT functional more flexible w.r.t. the shape of the weight functions. [#31](https://github.com/feos-org/feos-dft/pull/31)
+- Changed interface of `PairCorrelationFunction` to facilitate the calculation of pair correlation functions in mixtures. [#29](https://github.com/feos-org/feos-dft/pull/29)
 
 ## [0.2.0] - 2022-04-12
 ### Added
